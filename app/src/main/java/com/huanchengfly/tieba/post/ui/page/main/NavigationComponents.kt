@@ -1,6 +1,10 @@
 package com.huanchengfly.tieba.post.ui.page.main
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.Interaction
@@ -12,10 +16,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
@@ -28,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.NavigationDrawerItemColors
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.NavigationItemColors
@@ -41,7 +48,11 @@ import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.NonRestartableComposable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,13 +72,17 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.constrain
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastMap
 import com.huanchengfly.tieba.post.R
+import com.huanchengfly.tieba.post.LocalUISettings
 import com.huanchengfly.tieba.post.models.database.Account
 import com.huanchengfly.tieba.post.ui.common.LocalAnimatedVisibilityScope
 import com.huanchengfly.tieba.post.ui.common.theme.compose.clickableNoIndication
@@ -77,7 +92,6 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.AccountNavIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.NavigationBarHeight
 import com.huanchengfly.tieba.post.ui.widgets.compose.Sizes
-import com.huanchengfly.tieba.post.ui.widgets.compose.TallNavigationBarHeight
 import com.huanchengfly.tieba.post.utils.LocalAccount
 
 val floatingNavigationBarCompactScreenOffset: Dp
@@ -91,6 +105,127 @@ val floatingNavigationBarCompactScreenOffset: Dp
 private val FloatingNavigationBarElevation: Dp = 1.dp
 
 private val FloatingIconNavigationBarHeight = NavigationBarHeight
+
+// Shared by the regular main bar and its content placeholder; floating/rail layouts stay unchanged.
+internal val MainNavigationIconSize = 22.dp
+private val MainNavigationLabelLineHeight = 14.sp
+private val MainNavigationIconLabelGap = 2.dp
+private val MainNavigationVerticalPadding = 4.dp
+
+// Click feedback is independent of selection, so future swipe navigation need not replay it.
+private const val MainNavigationClickStartScale = 0.8f
+internal const val MainNavigationFeedbackDurationMillis = 330
+private val MainNavigationClickScaleSpec = keyframes {
+    durationMillis = MainNavigationFeedbackDurationMillis
+    MainNavigationClickStartScale at 0 using FastOutSlowInEasing
+    1.05f at 195 using LinearOutSlowInEasing
+    1f at MainNavigationFeedbackDurationMillis
+}
+
+internal val MainNavigationBarHeight: Dp
+    @Composable
+    get() = maxOf(
+        48.dp,
+        MainNavigationIconSize + MainNavigationIconLabelGap +
+            with(LocalDensity.current) { MainNavigationLabelLineHeight.toDp() } +
+            MainNavigationVerticalPadding * 2,
+    )
+
+/** Compact main-bar item: no selected container, with a full-height tab touch target. */
+@Composable
+internal fun CompactMainNavigationItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit,
+    label: @Composable (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    badge: @Composable (() -> Unit)? = null,
+    colors: NavigationItemColors? = null,
+    interactionSource: MutableInteractionSource? = null,
+) {
+    val reduceMotion = LocalUISettings.current.reduceMotion
+    val iconScale = remember { Animatable(1f) }
+    var clickSequence by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(clickSequence) {
+        if (clickSequence == 0 || reduceMotion || !enabled) {
+            iconScale.snapTo(1f)
+        } else {
+            // LaunchedEffect cancels the preceding click animation before replaying it.
+            iconScale.snapTo(MainNavigationClickStartScale)
+            iconScale.animateTo(1f, animationSpec = MainNavigationClickScaleSpec)
+        }
+    }
+    LaunchedEffect(selected, reduceMotion, enabled) {
+        // Cancel feedback on deselection/disable without replaying an old click when re-enabled.
+        if (!selected || reduceMotion || !enabled) iconScale.snapTo(1f)
+    }
+
+    val defaultColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val iconColor = when {
+        !enabled -> colors?.disabledIconColor ?: defaultColor.copy(alpha = 0.38f)
+        selected -> colors?.selectedIconColor ?: defaultColor
+        else -> colors?.unselectedIconColor ?: defaultColor
+    }
+    val textColor = when {
+        !enabled -> colors?.disabledTextColor ?: defaultColor.copy(alpha = 0.38f)
+        selected -> colors?.selectedTextColor ?: defaultColor
+        else -> colors?.unselectedTextColor ?: defaultColor
+    }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .semantics(mergeDescendants = true) {}
+            .selectable(
+                selected = selected,
+                enabled = enabled,
+                role = Role.Tab,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = {
+                    if (!reduceMotion) clickSequence++
+                    onClick() // Do not wait for visual feedback before navigating.
+                },
+            )
+            .padding(vertical = MainNavigationVerticalPadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(MainNavigationIconLabelGap, Alignment.CenterVertically),
+    ) {
+        CompositionLocalProvider(LocalContentColor provides iconColor) {
+            Box(Modifier.size(MainNavigationIconSize)) {
+                Box(
+                    Modifier.matchParentSize().graphicsLayer {
+                        scaleX = iconScale.value
+                        scaleY = iconScale.value
+                    }
+                ) {
+                    icon()
+                }
+                if (badge != null) {
+                    // Keep the unread badge inside the bar vertically, even at the compact height.
+                    Box(Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-2).dp)) {
+                        badge()
+                    }
+                }
+            }
+        }
+        if (label != null) {
+            CompositionLocalProvider(LocalContentColor provides textColor) {
+                ProvideTextStyle(
+                    MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 12.sp,
+                        lineHeight = MainNavigationLabelLineHeight,
+                        letterSpacing = 0.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    )
+                ) {
+                    label()
+                }
+            }
+        }
+    }
+}
 
 val ColorScheme.vibrantFloatingNavigationBarColor: Color
     get() = surfaceColorAtElevation(4.dp)
@@ -335,7 +470,7 @@ object DefaultNavigationBarOverride : ShortNavigationBarOverride {
                 modifier =
                     Modifier
                         .windowInsetsPadding(windowInsets)
-                        .height(TallNavigationBarHeight)
+                        .height(MainNavigationBarHeight)
                         .selectableGroup(),
                 content = content,
                 measurePolicy = EqualWeightContentMeasurePolicy,

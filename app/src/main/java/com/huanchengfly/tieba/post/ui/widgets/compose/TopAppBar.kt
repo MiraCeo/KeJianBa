@@ -171,6 +171,7 @@ fun TopAppBar(
     actions: @Composable RowScope.() -> Unit = {},
     colors: TopAppBarColors = TiebaLiteTheme.topAppBarColors,
     scrollBehavior: TopAppBarScrollBehavior? = null,
+    expandedHeight: Dp = TopAppBarDefaults.TopAppBarExpandedHeight,
     content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     SingleRowTopAppBar(
@@ -181,7 +182,7 @@ fun TopAppBar(
         titleHorizontalAlignment = titleHorizontalAlignment,
         navigationIcon = navigationIcon,
         actions = actions,
-        expandedHeight = TopAppBarDefaults.TopAppBarExpandedHeight,
+        expandedHeight = expandedHeight,
         windowInsets = TopAppBarDefaults.windowInsets,
         colors = colors,
         scrollBehavior = scrollBehavior
@@ -382,6 +383,7 @@ fun CenterAlignedTopAppBar(
     actions: @Composable RowScope.() -> Unit = {},
     colors: TopAppBarColors = TiebaLiteTheme.topAppBarColors,
     scrollBehavior: TopAppBarScrollBehavior? = null,
+    expandedHeight: Dp = TopAppBarDefaults.TopAppBarExpandedHeight,
     content: (@Composable ColumnScope.() -> Unit)? = null
 ) =
     TopAppBar(
@@ -392,6 +394,7 @@ fun CenterAlignedTopAppBar(
         actions = actions,
         content = content,
         colors = colors,
+        expandedHeight = expandedHeight,
         scrollBehavior = scrollBehavior
     )
 

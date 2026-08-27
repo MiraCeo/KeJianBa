@@ -11,8 +11,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
@@ -37,9 +35,13 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Badge
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalShortNavigationBarOverride
+import androidx.compose.material3.ShortNavigationBar
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItemDefaults
@@ -66,6 +68,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -134,6 +137,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.navigationSuiteScaffoldCon
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberTbHazeState
 import com.huanchengfly.tieba.post.utils.DeviceUtils.vibrateOneShot
 import com.huanchengfly.tieba.post.utils.LocalAccount
+import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
@@ -167,6 +171,7 @@ val bottomNavigationPlaceholder: @Composable () -> Unit = {
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .height(
                     when (navigationSuiteType) {
+                        MainNavigationSuiteType.NavigationBar -> MainNavigationBarHeight
                         MainNavigationSuiteType.ShortNavigationBarCompact -> NavigationBarHeight
                         MainNavigationSuiteType.FloatingNavigationBar -> {
                             TallNavigationBarHeight + floatingNavigationBarCompactScreenOffset
@@ -234,9 +239,14 @@ fun MainPage(
     val navigationSuiteColors = mainNavigationSuiteColors(uiSettings.bottomNavFloating, blurEffect)
 
     val currentDestination by nestedNavController.currentMainDestinationAsState(destinations)
+    val mainVisibleEntries = nestedNavController.visibleEntries.collectAsStateWithLifecycle()
     MainNavigationSuiteScaffold(
         state = scaffoldState,
         hazeState = hazeState.takeIf { navigationSuiteType.isNavigationBar },
+        // This NavHost contains only full-screen destinations. During a tab transition,
+        // visibleEntries includes both the outgoing and incoming page, including on pop.
+        // Read in the Haze effect rather than recomposing MainPage for transition updates.
+        mainTransitionRunning = { mainVisibleEntries.value.size > 1 },
         navigationItems = {
             val messageCount by vm.messageCountFlow.collectAsStateWithLifecycle()
 
@@ -290,10 +300,12 @@ fun MainPage(
         val parentAnimatedVisibilityScope = LocalAnimatedVisibilityScope.current
         val parentSharedTransitionScope = LocalSharedTransitionScope.current
         val enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-            mainEnterTransition(navigationSuiteType, destinations)
+            if (uiSettings.reduceMotion) EnterTransition.None
+            else mainEnterTransition(navigationSuiteType, destinations)
         }
         val exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-            mainExitTransition(navigationSuiteType, destinations)
+            if (uiSettings.reduceMotion) ExitTransition.None
+            else mainExitTransition(navigationSuiteType, destinations)
         }
 
         NavHost(
@@ -340,15 +352,28 @@ private fun MainNavigationSuite(
         MainNavigationSuiteType.NavigationBar -> DefaultNavigationBarOverride
         else -> androidx.compose.material3.DefaultShortNavigationBarOverride
     }
-    CompositionLocalProvider(LocalShortNavigationBarOverride provides shortNavBarOverride) {
-        NavigationSuite(
-            navigationSuiteType = mainNavigationSuiteType.toNavigationSuiteType(),
-            modifier = modifier,
-            colors = colors,
-            verticalArrangement = verticalArrangement,
-            primaryActionContent = primaryActionContent,
-            content = content,
-        )
+    CompositionLocalProvider(
+        LocalShortNavigationBarOverride provides shortNavBarOverride,
+    ) {
+        if (mainNavigationSuiteType == MainNavigationSuiteType.NavigationBar) {
+            // NavigationSuite adds an 80dp minimum around this same component.
+            // Instantiate it directly so our bar height and content placeholder agree.
+            ShortNavigationBar(
+                modifier = modifier,
+                containerColor = colors.navigationBarContainerColor,
+                contentColor = colors.navigationBarContentColor,
+                content = content,
+            )
+        } else {
+            NavigationSuite(
+                navigationSuiteType = mainNavigationSuiteType.toNavigationSuiteType(),
+                modifier = modifier,
+                colors = colors,
+                verticalArrangement = verticalArrangement,
+                primaryActionContent = primaryActionContent,
+                content = content,
+            )
+        }
     }
 }
 
@@ -363,6 +388,7 @@ private fun MainNavigationSuiteScaffold(
     navigationItems: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     hazeState: TbHazeState? = null,
+    mainTransitionRunning: () -> Boolean = { false },
     mainNavSuiteType: MainNavigationSuiteType = calculateMainNavigationSuiteType(),
     navigationBarAtop: Boolean = true,
     navigationSuiteColors: NavigationSuiteColors = NavigationSuiteDefaults.colors(),
@@ -390,7 +416,15 @@ private fun MainNavigationSuiteScaffold(
                 modifier = Modifier
                     .withNonNull(hazeState) {
                         Modifier.defaultHazeEffect {
-                            blurEnabled = animatedVisibilityScope?.transition?.isRunning != true
+                            val mainTransition = mainTransitionRunning()
+                            blurEnabled = !mainTransition && animatedVisibilityScope?.transition?.isRunning != true
+                            // Keep the bar opaque while tab contents move beneath it.
+                            // Leave the existing fallback for outer navigation unchanged.
+                            fallbackTint = if (mainTransition) {
+                                HazeTint(hazeStyle.backgroundColor.copy(alpha = 1f))
+                            } else {
+                                HazeTint.Unspecified
+                            }
                         }
                     }
                     .onNotNull(colorsOnTransition) {
@@ -447,49 +481,75 @@ private fun MainNavigationItems(
     messageCount: () -> String? = { null },
 ) {
     val isNavigationBar = mainNavigationSuiteType.isNavigationBar
+    val isCompactMainBar = mainNavigationSuiteType == MainNavigationSuiteType.NavigationBar
     items.fastForEach { destination ->
-        val selected = isSelected(destination)
-        MainNavigationSuiteItem(
-            selected = selected,
-            onClick = {
-                if (selected) onReSelect(destination) else onSelect(destination)
-            },
-            icon = {
-                Icon(
-                    painter = rememberAnimatedVectorPainter(
-                        animatedImageVector = AnimatedImageVector.animatedVectorResource(destination.iconRes),
-                        atEnd = selected
-                    ),
-                    modifier = Modifier.size(Sizes.Tiny),
-                    contentDescription = stringResource(destination.titleRes),
-                )
-            },
-            label = if (mainNavigationSuiteType != MainNavigationSuiteType.NavigationRail &&
-                (!isNavigationBar || bottomNavLabel.visible(selected))
-            ) {
-                { Text(stringResource(id = destination.titleRes)) }
-            } else {
-                null
-            },
-            modifier = modifier
-                .onCase(mainNavigationSuiteType == MainNavigationSuiteType.NavigationDrawer) {
-                    padding(horizontal = 16.dp)
+        // Keep each destination's remembered icon/interaction state in its own composition group.
+        key(destination) {
+            val selected = isSelected(destination)
+            MainNavigationSuiteItem(
+                selected = selected,
+                onClick = {
+                    if (selected) onReSelect(destination) else onSelect(destination)
                 },
-            mainNavigationSuiteType = mainNavigationSuiteType,
-            badge = if (destination === MainDestination.Notification) {
-                {
-                    messageCount()?.let { messageCountText ->
-                        Badge {
-                            Text(
-                                text = messageCountText, // 6.sp ~ BadgeTokens.LargeLabelTextFont.fontSize
-                                autoSize = TextAutoSize.StepBased(6.sp, LocalTextStyle.current.fontSize),
-                                maxLines = 1
-                            )
+                icon = {
+                    val iconModifier = Modifier.size(if (isCompactMainBar) MainNavigationIconSize else Sizes.Tiny)
+                    val description = if (isCompactMainBar && bottomNavLabel.visible(selected)) {
+                        null // The label names the merged tab; avoid announcing it twice.
+                    } else {
+                        stringResource(destination.titleRes)
+                    }
+                    if (isCompactMainBar) {
+                        MainNavigationIcon(
+                            destination = destination,
+                            selected = selected,
+                            description = description,
+                            modifier = iconModifier,
+                        )
+                    } else if (destination === MainDestination.Notification) {
+                        // Explicit bell vectors avoid the animated-resource painter path for messages.
+                        Icon(
+                            imageVector = if (selected) Icons.Rounded.Notifications else Icons.Rounded.NotificationsNone,
+                            modifier = iconModifier,
+                            contentDescription = description,
+                        )
+                    } else {
+                        Icon(
+                            painter = rememberAnimatedVectorPainter(
+                                animatedImageVector = AnimatedImageVector.animatedVectorResource(destination.iconRes),
+                                atEnd = selected,
+                            ),
+                            modifier = iconModifier,
+                            contentDescription = description,
+                        )
+                    }
+                },
+                label = if (mainNavigationSuiteType != MainNavigationSuiteType.NavigationRail &&
+                    (!isNavigationBar || bottomNavLabel.visible(selected))
+                ) {
+                    { Text(stringResource(id = destination.titleRes), maxLines = if (isCompactMainBar) 1 else Int.MAX_VALUE) }
+                } else {
+                    null
+                },
+                modifier = modifier
+                    .onCase(mainNavigationSuiteType == MainNavigationSuiteType.NavigationDrawer) {
+                        padding(horizontal = 16.dp)
+                    },
+                mainNavigationSuiteType = mainNavigationSuiteType,
+                badge = if (destination === MainDestination.Notification) {
+                    {
+                        messageCount()?.let { messageCountText ->
+                            Badge {
+                                Text(
+                                    text = messageCountText, // 6.sp ~ BadgeTokens.LargeLabelTextFont.fontSize
+                                    autoSize = TextAutoSize.StepBased(6.sp, LocalTextStyle.current.fontSize),
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
-                }
-            } else null,
-        )
+                } else null,
+            )
+        }
     }
 }
 
@@ -507,7 +567,19 @@ private fun MainNavigationSuiteItem(
     colors: NavigationItemColors? = null,
     interactionSource: MutableInteractionSource? = null,
 ) {
-    if (mainNavigationSuiteType == MainNavigationSuiteType.FloatingNavigationBarCompact) {
+    if (mainNavigationSuiteType == MainNavigationSuiteType.NavigationBar) {
+        CompactMainNavigationItem(
+            selected = selected,
+            onClick = onClick,
+            icon = icon,
+            label = label,
+            modifier = modifier,
+            enabled = enabled,
+            badge = badge,
+            colors = colors,
+            interactionSource = interactionSource,
+        )
+    } else if (mainNavigationSuiteType == MainNavigationSuiteType.FloatingNavigationBarCompact) {
         IconNavigationItem(
             selected = selected,
             onClick = onClick,
@@ -738,15 +810,15 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.mainEnterTransitio
             slideInHorizontally(
                 animationSpec = MAIN_TRANSITION_SPEC,
                 initialOffsetX = { if (direction == LayoutDirection.LEFT_TO_RIGHT) it else -it }
-            ) + MAIN_FADE_IN_TRANSITION
+            )
         }
         LayoutDirection.TOP_TO_BOTTOM, LayoutDirection.BOTTOM_TO_TOP -> {
             slideInVertically(
                 animationSpec = MAIN_TRANSITION_SPEC,
                 initialOffsetY = { if (direction == LayoutDirection.TOP_TO_BOTTOM) it else -it }
-            ) + MAIN_FADE_IN_TRANSITION
+            )
         }
-        else -> MAIN_FADE_IN_TRANSITION
+        else -> EnterTransition.None
     }
 }
 
@@ -760,26 +832,20 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.mainExitTransition
             slideOutHorizontally(
                 animationSpec = MAIN_TRANSITION_SPEC,
                 targetOffsetX = { if (direction == LayoutDirection.LEFT_TO_RIGHT) -it else it }
-            ) + MAIN_FADE_OUT_TRANSITION
+            )
         }
         LayoutDirection.TOP_TO_BOTTOM, LayoutDirection.BOTTOM_TO_TOP -> {
             slideOutVertically(
                 animationSpec = MAIN_TRANSITION_SPEC,
                 targetOffsetY = { if (direction == LayoutDirection.TOP_TO_BOTTOM) -it else it }
-            ) + MAIN_FADE_OUT_TRANSITION
+            )
         }
-        else -> MAIN_FADE_OUT_TRANSITION
+        else -> ExitTransition.None
     }
 }
 
 private val MAIN_TRANSITION_SPEC: FiniteAnimationSpec<IntOffset> =
     tween(durationMillis = 250, easing = FastOutSlowInEasing)
-
-private val MAIN_FADE_IN_TRANSITION: EnterTransition =
-    fadeIn(tween(durationMillis = 300, easing = FastOutSlowInEasing))
-
-private val MAIN_FADE_OUT_TRANSITION: ExitTransition =
-    fadeOut(tween(durationMillis = 300, easing = FastOutSlowInEasing))
 
 @ReadOnlyComposable
 @Composable

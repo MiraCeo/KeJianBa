@@ -17,6 +17,8 @@ import com.huanchengfly.tieba.post.arch.collectPartialAsState
 import com.huanchengfly.tieba.post.navigateDebounced
 import com.huanchengfly.tieba.post.ui.page.Destination
 import com.huanchengfly.tieba.post.ui.page.main.explore.ConsumeThreadPageResult
+import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle
+import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle.feedCard
 import com.huanchengfly.tieba.post.ui.page.main.explore.LaunchedFabStateEffect
 import com.huanchengfly.tieba.post.ui.page.main.explore.createThreadClickListeners
 import com.huanchengfly.tieba.post.ui.widgets.compose.FeedCard
@@ -84,13 +86,14 @@ fun ConcernPage(
             ) {
                 itemsIndexed(data, key = { _, it -> it.id }, ThreadContentType) { i, thread ->
                     FeedCard(
+                        modifier = Modifier.feedCard(),
                         thread = thread,
                         onClick = threadClickListeners.onClicked,
                         onLike = viewModel::onThreadLikeClicked,
                         onClickReply = threadClickListeners.onReplyClicked,
                         onClickUser = threadClickListeners.onAuthorClicked,
                         onClickForum = threadClickListeners.onForumClicked,
-                        cardDivider = i < data.lastIndex
+                        cardDivider = !ExploreFeedStyle.useCards && i < data.lastIndex
                     )
                 }
             }

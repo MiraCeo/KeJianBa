@@ -54,6 +54,8 @@ import com.huanchengfly.tieba.post.ui.common.theme.compose.clickableNoIndication
 import com.huanchengfly.tieba.post.ui.models.explore.HotTab
 import com.huanchengfly.tieba.post.ui.page.Destination
 import com.huanchengfly.tieba.post.ui.page.main.explore.ConsumeThreadPageResult
+import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle
+import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle.feedCard
 import com.huanchengfly.tieba.post.ui.page.main.explore.LaunchedFabStateEffect
 import com.huanchengfly.tieba.post.ui.page.main.explore.createThreadClickListeners
 import com.huanchengfly.tieba.post.ui.widgets.compose.Chip
@@ -213,7 +215,9 @@ fun HotPage(
 
                 if (threadList.isNullOrEmpty()) {
                     items(4, contentType = { HotType.PlaceHolder }) {
-                        FeedCardPlaceholder()
+                        Box(modifier = Modifier.feedCard()) {
+                            FeedCardPlaceholder()
+                        }
                     }
                     return@LazyColumn
                 }
@@ -237,13 +241,14 @@ fun HotPage(
                 ) { index, thread ->
                     trace(MacrobenchmarkConstant.TRACE_FEED_CARD) {
                         FeedCard(
+                            modifier = Modifier.feedCard(),
                             thread = thread,
                             onClick = threadClickListeners.onClicked,
                             onLike = viewModel::onThreadLikeClicked,
                             onClickReply = threadClickListeners.onReplyClicked,
                             onClickUser = threadClickListeners.onAuthorClicked,
                             onClickForum = threadClickListeners.onForumClicked,
-                            cardDivider = index != threadList.lastIndex,
+                            cardDivider = !ExploreFeedStyle.useCards && index != threadList.lastIndex,
                         ) {
                             HotRankText(rank = index + 1, hotNum = thread.hotNum)
                         }

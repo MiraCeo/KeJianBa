@@ -48,6 +48,8 @@ import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.models.explore.Dislike
 import com.huanchengfly.tieba.post.ui.page.Destination
 import com.huanchengfly.tieba.post.ui.page.main.explore.ConsumeThreadPageResult
+import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle
+import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle.feedCard
 import com.huanchengfly.tieba.post.ui.page.main.explore.LaunchedFabStateEffect
 import com.huanchengfly.tieba.post.ui.page.main.explore.createThreadClickListeners
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlockTip
@@ -164,6 +166,7 @@ fun PersonalizedPage(
                             hideBlockedContent = hideBlockedContent
                         ) {
                             FeedCard(
+                                modifier = Modifier.feedCard(),
                                 thread = thread,
                                 onClick = threadClickListeners.onClicked,
                                 onLike = viewModel::onThreadLikeClicked,
@@ -187,7 +190,7 @@ fun PersonalizedPage(
                                         viewModel.onThreadDislike(thread, dislikeReasons.toList())
                                     }
                                 },
-                                cardDivider = !isHidden && index < data.lastIndex,
+                                cardDivider = !ExploreFeedStyle.useCards && !isHidden && index < data.lastIndex,
                             )
                         }
                     }
