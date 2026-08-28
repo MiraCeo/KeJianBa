@@ -47,6 +47,7 @@ import com.huanchengfly.tieba.post.ui.common.theme.compose.clickableNoIndication
 import com.huanchengfly.tieba.post.ui.models.forum.ForumManager
 import com.huanchengfly.tieba.post.ui.page.photoview.PhotoViewActivity
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
+import com.huanchengfly.tieba.post.ui.widgets.compose.ForumAvatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.Chip
 import com.huanchengfly.tieba.post.ui.widgets.compose.Sizes
@@ -124,7 +125,7 @@ private fun ForumDetailContent(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Avatar(
+        ForumAvatar(
             data = avatar,
             size = Sizes.Medium,
             modifier = Modifier.clickableNoIndication {

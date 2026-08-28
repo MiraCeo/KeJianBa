@@ -33,6 +33,10 @@ import kotlin.reflect.KType
 sealed interface MainDestination {
 
     @Serializable
+    object Feed: MainDestination
+
+    // Keep the original forum route identity for saved navigation state.
+    @Serializable
     object Home: MainDestination
 
     @Serializable
@@ -45,13 +49,35 @@ sealed interface MainDestination {
     object User: MainDestination
 }
 
+internal fun mainDestinations(loggedIn: Boolean, hideExplore: Boolean): List<MainDestination> =
+    listOfNotNull(
+        MainDestination.Feed,
+        MainDestination.Explore.takeUnless { hideExplore },
+        MainDestination.Home,
+        MainDestination.Notification.takeIf { loggedIn },
+        MainDestination.User,
+    )
+
 fun NavGraphBuilder.mainNavGraph(
     navController: NavController,
     nestedNavController: NavController,
     hazeState: TbHazeState? = null,
     parentAnimatedVisibilityScope: AnimatedVisibilityScope? = null,
     parentSharedTransitionScope: SharedTransitionScope? = null,
+    startDestination: MainDestination = MainDestination.Feed,
 ) {
+    animatedMainComposable<MainDestination.Feed>(
+        hazeState = hazeState,
+        navController = navController,
+        parentAnimatedVisibilityScope = parentAnimatedVisibilityScope,
+        parentSharedTransitionScope = parentSharedTransitionScope,
+    ) {
+        val accountUid = LocalAccount.current?.uid
+        key(accountUid) {
+            ExplorePage(destination = MainDestination.Feed)
+        }
+    }
+
     animatedMainComposable<MainDestination.Home>(
         hazeState = hazeState,
         navController = navController,
@@ -60,10 +86,10 @@ fun NavGraphBuilder.mainNavGraph(
     ) {
         HomePage(
             onOpenExplore = {
-                nestedNavController.navigate(route = MainDestination.Explore) {
+                nestedNavController.navigate(route = MainDestination.Feed) {
                     launchSingleTop = true
                     restoreState = true
-                    popUpTo(MainDestination.Home) {
+                    popUpTo(startDestination) {
                         saveState = true
                     }
                 }
@@ -77,9 +103,9 @@ fun NavGraphBuilder.mainNavGraph(
         parentAnimatedVisibilityScope = parentAnimatedVisibilityScope,
         parentSharedTransitionScope = parentSharedTransitionScope,
     ) {
-        val loggedIn = LocalAccount.current != null
-        key(loggedIn) { // Force recreate
-            ExplorePage(loggedIn)
+        val accountUid = LocalAccount.current?.uid
+        key(accountUid) { // Recreate per account, including switches between logged-in accounts.
+            ExplorePage(destination = MainDestination.Explore)
         }
     }
 

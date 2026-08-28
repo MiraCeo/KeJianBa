@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -58,10 +60,13 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.CardHorizontalSpacing
 import com.huanchengfly.tieba.post.ui.widgets.compose.FeedCard
 import com.huanchengfly.tieba.post.ui.widgets.compose.PullToRefreshBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.StrongBox
+import com.huanchengfly.tieba.post.ui.widgets.compose.TipScreen
 import com.huanchengfly.tieba.post.ui.widgets.compose.SwipeUpLazyLoadColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadContentType
 import com.huanchengfly.tieba.post.ui.widgets.compose.defaultBottomIndicator
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
+import com.huanchengfly.tieba.post.ui.widgets.compose.states.DefaultEmptyScreen
+import com.huanchengfly.tieba.post.utils.LocalAccount
 import com.huanchengfly.tieba.post.utils.trace
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -79,7 +84,12 @@ fun PersonalizedPage(
     listState: LazyListState = rememberLazyListState(),
     navigator: NavController,
     onHideFab: (Boolean) -> Unit,
-    viewModel: PersonalizedViewModel = hiltViewModel(),
+    followedOnly: Boolean = false,
+    isActive: Boolean = true,
+    accountUid: Long = LocalAccount.current?.uid ?: -1L,
+    viewModel: PersonalizedViewModel = hiltViewModel<PersonalizedViewModel, PersonalizedViewModel.Factory>(
+        key = "personalized:$accountUid:$followedOnly",
+    ) { it.create(followedOnly, accountUid) },
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -87,6 +97,7 @@ fun PersonalizedPage(
 
     viewModel.uiEvent.collectUiEventWithLifecycle {
         when (it) {
+            PersonalizedUiEvent.UsingCachedForums -> toastShort(R.string.tip_followed_using_cache)
             is PersonalizedUiEvent.RefreshSuccess -> coroutineScope.launch {
                 listState.scrollToItem(0, 0)
                 refreshCount = it.count // Show refresh tip
@@ -108,7 +119,9 @@ fun PersonalizedPage(
         createThreadClickListeners(onNavigate = navigator::navigateDebounced)
     }
 
-    ConsumeThreadPageResult<Destination.Main>(navigator, viewModel::onThreadResult)
+    if (isActive) {
+        ConsumeThreadPageResult<Destination.Main>(navigator, viewModel::onThreadResult)
+    }
 
     val isRefreshing by viewModel.uiState.collectPartialAsState(
         prop1 = PersonalizedUiState::isRefreshing,
@@ -123,15 +136,49 @@ fun PersonalizedPage(
         initial = null
     )
     val isError = error != null
+    val emptyReason by viewModel.uiState.collectPartialAsState(
+        prop1 = PersonalizedUiState::emptyReason, initial = PersonalizedEmptyReason.None,
+    )
+    val isLoadingMore by viewModel.uiState.collectPartialAsState(
+        prop1 = PersonalizedUiState::isLoadingMore, initial = false,
+    )
 
     LaunchedFabStateEffect(listState, onHideFab, isRefreshing, isError)
 
     StateScreen(
         isEmpty = isEmpty,
-        isLoading = isRefreshing && isEmpty, // Only initial load, allow browse existing content on refresh
+        isLoading = (isRefreshing || isLoadingMore) && isEmpty,
         error = error,
         onReload = viewModel::onRefresh,
         screenPadding = contentPadding,
+        emptyScreen = {
+            if (!followedOnly) {
+                DefaultEmptyScreen()
+            } else {
+                TipScreen(
+                    title = { Text(stringResource(when (emptyReason) {
+                        PersonalizedEmptyReason.LoginRequired -> R.string.tip_followed_login
+                        PersonalizedEmptyReason.NoForums -> R.string.tip_followed_no_forums
+                        else -> R.string.tip_followed_no_matches
+                    })) },
+                    message = { Text(stringResource(R.string.tip_followed_feed_scope)) },
+                    actions = {
+                        if (emptyReason == PersonalizedEmptyReason.LoginRequired) {
+                            FilledTonalButton(onClick = { navigator.navigateDebounced(Destination.Login) }) {
+                                Text(stringResource(R.string.tip_followed_login_action))
+                            }
+                        } else {
+                            if (emptyReason == PersonalizedEmptyReason.NoMatches) {
+                                FilledTonalButton(onClick = viewModel::onLoadMore) {
+                                    Text(stringResource(R.string.tip_followed_continue))
+                                }
+                            }
+                            TextButton(onClick = viewModel::onRefresh) { Text(stringResource(R.string.btn_refresh)) }
+                        }
+                    },
+                )
+            }
+        },
     ) {
         PullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -151,7 +198,7 @@ fun PersonalizedPage(
                 state = listState,
                 contentPadding = contentPadding,
                 isLoading = isLoadingMore,
-                onLazyLoad = viewModel::onLoadMore.takeUnless { isRefreshing },
+                onLazyLoad = viewModel::onLoadMore.takeUnless { isRefreshing || uiState.manualContinuation },
                 bottomIndicator = defaultBottomIndicator,
             ) {
                 itemsIndexed(data, key = { _, it -> it.id }, ThreadContentType) { index, thread ->
@@ -192,6 +239,14 @@ fun PersonalizedPage(
                                 },
                                 cardDivider = !ExploreFeedStyle.useCards && !isHidden && index < data.lastIndex,
                             )
+                        }
+                    }
+                }
+                if (uiState.manualContinuation) {
+                    item(key = "followed-manual-continuation") {
+                        TextButton(onClick = viewModel::onLoadMore, enabled = !isLoadingMore,
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.tip_followed_continue))
                         }
                     }
                 }

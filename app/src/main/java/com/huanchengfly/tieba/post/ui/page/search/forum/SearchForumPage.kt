@@ -31,7 +31,7 @@ import com.huanchengfly.tieba.post.ui.common.localSharedBounds
 import com.huanchengfly.tieba.post.ui.models.search.SearchForum
 import com.huanchengfly.tieba.post.ui.page.Destination.Forum
 import com.huanchengfly.tieba.post.ui.page.LocalNavController
-import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
+import com.huanchengfly.tieba.post.ui.widgets.compose.ForumAvatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.Chip
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.PullToRefreshBox
@@ -122,7 +122,7 @@ fun SearchForumItem(forum: SearchForum, transitionKey: String? = null, onClick: 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Avatar(
+        ForumAvatar(
             data = forum.avatar,
             size = Sizes.Medium,
             modifier = Modifier.localSharedBounds(

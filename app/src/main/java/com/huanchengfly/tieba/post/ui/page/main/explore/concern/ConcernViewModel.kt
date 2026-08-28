@@ -11,10 +11,14 @@ import com.huanchengfly.tieba.post.arch.UiState
 import com.huanchengfly.tieba.post.arch.emitGlobalEventSuspend
 import com.huanchengfly.tieba.post.repository.ExploreRepository
 import com.huanchengfly.tieba.post.repository.ExploreRepository.Companion.distinctById
+import com.huanchengfly.tieba.post.repository.UserProfileRepository
+import com.huanchengfly.tieba.post.ui.models.user.FollowUser
 import com.huanchengfly.tieba.post.ui.models.Like
 import com.huanchengfly.tieba.post.ui.models.ThreadItem
 import com.huanchengfly.tieba.post.ui.page.main.explore.ExplorePageItem
 import com.huanchengfly.tieba.post.ui.page.thread.ThreadLikeUiEvent
+import com.huanchengfly.tieba.post.utils.AccountUtil
+import com.huanchengfly.tieba.post.utils.StringUtil
 import com.huanchengfly.tieba.post.utils.extension.set
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +36,7 @@ data class ConcernUiState(
     val lastRequestUnix: Long = 0,
     val nextPageTag: String = "",
     val data: List<ThreadItem> = emptyList(),
+    val followedUsers: List<FollowUser> = emptyList(),
     val error: Throwable? = null
 ): UiState {
 
@@ -42,7 +47,8 @@ data class ConcernUiState(
 @Stable
 @HiltViewModel
 class ConcernViewModel @Inject constructor(
-    private val exploreRepo: ExploreRepository
+    private val exploreRepo: ExploreRepository,
+    private val userProfileRepo: UserProfileRepository,
 ) : BaseStateViewModel<ConcernUiState>() {
 
     override val errorHandler = TbLiteExceptionHandler(TAG) { _, e, suppressed ->
@@ -61,6 +67,7 @@ class ConcernViewModel @Inject constructor(
 
     init {
         refreshInternal(cached = true)
+        refreshFollowedUsers()
     }
 
     private fun refreshInternal(cached: Boolean) = launchInVM(errorHandler) {
@@ -79,7 +86,36 @@ class ConcernViewModel @Inject constructor(
     }
 
     fun onRefresh() {
-        if (!currentState.isRefreshing) refreshInternal(cached = false)
+        if (!currentState.isRefreshing) {
+            refreshInternal(cached = false)
+            refreshFollowedUsers()
+        }
+    }
+
+    private fun refreshFollowedUsers() = launchInVM {
+        val uid = AccountUtil.getUid()?.toLongOrNull()
+        if (uid == null) {
+            _uiState.update { it.copy(followedUsers = emptyList()) }
+            return@launchInVM
+        }
+        runCatching { userProfileRepo.loadUserFollowList(uid, page = 1) }
+            .onSuccess { result ->
+                val users = result.followList.map { user ->
+                    FollowUser(
+                        uid = user.id,
+                        avatar = StringUtil.getAvatarUrl(user.portrait),
+                        displayName = StringUtil.getUserNameString(
+                            showBoth = true,
+                            username = user.name.orEmpty(),
+                            nickname = user.nameShow,
+                        ),
+                        portrait = user.portrait.orEmpty(),
+                        intro = user.intro?.takeUnless { it.isBlank() },
+                        concernType = user.hasConcerned,
+                    )
+                }
+                _uiState.update { it.copy(followedUsers = users) }
+            }
     }
 
     fun onLoadMore() {

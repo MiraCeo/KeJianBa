@@ -91,6 +91,7 @@ import com.huanchengfly.tieba.post.ui.page.user.sharedUserAvatar
 import com.huanchengfly.tieba.post.ui.page.user.sharedUserNickname
 import com.huanchengfly.tieba.post.ui.page.user.sharedUsername
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
+import com.huanchengfly.tieba.post.ui.widgets.compose.ForumAvatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.ClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.DefaultBackToTopFAB
@@ -367,7 +368,7 @@ private fun ForumItem(modifier: Modifier = Modifier, item: ForumHistory, selecte
         modifier = modifier,
         selected = selected,
         avatar = {
-            Avatar(
+            ForumAvatar(
                 modifier = Modifier
                     .matchParentSize()
                     .localSharedBounds(key = ForumAvatarSharedBoundsKey(item.name, null)),

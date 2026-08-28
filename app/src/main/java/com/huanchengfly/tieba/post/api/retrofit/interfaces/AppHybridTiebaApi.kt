@@ -2,6 +2,7 @@ package com.huanchengfly.tieba.post.api.retrofit.interfaces
 
 import com.huanchengfly.tieba.post.api.Param
 import com.huanchengfly.tieba.post.api.models.CommonResponse
+import com.huanchengfly.tieba.post.api.models.ForumSquareRecommendResponse
 import com.huanchengfly.tieba.post.api.models.SearchForumBean
 import com.huanchengfly.tieba.post.api.models.SearchThreadBean
 import com.huanchengfly.tieba.post.api.models.SearchUserBean
@@ -12,9 +13,22 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Headers
 import retrofit2.http.Query
+import retrofit2.http.QueryMap
 import com.huanchengfly.tieba.post.api.Header as TiebaHeaders
 
 interface AppHybridTiebaApi {
+    @Headers(
+        "${TiebaHeaders.ADD_WEB_COOKIE}: ${TiebaHeaders.ADD_WEB_COOKIE_FALSE}",
+        "${TiebaHeaders.NO_COMMON_PARAMS}: ${Param.BDUSS},${Param.STOKEN}",
+        "Referer: https://tieba.baidu.com/mo/q/hybrid-main-bawu/forumConcern/hybrid",
+    )
+    @GET("/c/f/forum/getForumSquare")
+    fun forumSquareRecommendFlow(
+        @QueryMap params: Map<String, String>,
+        @Header("Cookie") cookie: String,
+        @Header("User-Agent") userAgent: String,
+    ): Flow<ForumSquareRecommendResponse>
+
     @Headers(
         "${TiebaHeaders.NO_ST_PARAMS}: ${TiebaHeaders.NO_ST_PARAMS_TRUE}",
         "${TiebaHeaders.NO_COMMON_PARAMS}: ${Param.BDUSS},${Param.STOKEN}",

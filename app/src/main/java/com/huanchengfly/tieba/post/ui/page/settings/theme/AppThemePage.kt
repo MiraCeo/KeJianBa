@@ -138,6 +138,8 @@ import com.huanchengfly.tieba.post.ui.page.main.MainDestination
 import com.huanchengfly.tieba.post.ui.page.main.NavigationDrawerItem
 import com.huanchengfly.tieba.post.ui.page.main.home.HistoryItem
 import com.huanchengfly.tieba.post.ui.page.main.iconRes
+import com.huanchengfly.tieba.post.ui.page.main.MainNavigationIcon
+import com.huanchengfly.tieba.post.ui.page.main.mainDestinations
 import com.huanchengfly.tieba.post.ui.page.main.titleRes
 import com.huanchengfly.tieba.post.ui.page.main.user.StatCard
 import com.huanchengfly.tieba.post.ui.page.subposts.PostLikeButton
@@ -573,7 +575,7 @@ fun UserPostCardWidget(modifier: Modifier = Modifier, account: Account?, postTex
 @Composable
 private fun CompactNavigationDrawer(modifier: Modifier = Modifier) {
     var selected by remember { mutableIntStateOf(0) }
-    val navItems = listOf(MainDestination.Home, MainDestination.Explore, MainDestination.Notification, MainDestination.User)
+    val navItems = mainDestinations(loggedIn = true, hideExplore = false)
 
     Column(
         modifier = modifier
@@ -586,14 +588,18 @@ private fun CompactNavigationDrawer(modifier: Modifier = Modifier) {
                 onClick = { if (index != selected) { selected = index } },
                 label = { Text(text = stringResource(navigationItem.titleRes)) },
                 icon = {
-                    Icon(
-                        painter = rememberAnimatedVectorPainter(
-                            animatedImageVector = AnimatedImageVector.animatedVectorResource(navigationItem.iconRes),
-                            atEnd = index == selected
-                        ),
-                        contentDescription = null,
-                        modifier = Modifier.size(Sizes.Tiny)
-                    )
+                    if (navigationItem === MainDestination.Feed) {
+                        MainNavigationIcon(navigationItem, index == selected, null, Modifier.size(Sizes.Tiny))
+                    } else {
+                        Icon(
+                            painter = rememberAnimatedVectorPainter(
+                                animatedImageVector = AnimatedImageVector.animatedVectorResource(navigationItem.iconRes),
+                                atEnd = index == selected
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier.size(Sizes.Tiny)
+                        )
+                    }
                 }
             )
         }

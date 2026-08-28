@@ -48,11 +48,12 @@ fun Avatar(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
     shape: Shape = CircleShape,
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     if (!data.isNullOrEmpty()) {
-        Avatar(data = data, modifier = modifier.size(size), contentDescription, shape)
+        Avatar(data = data, modifier = modifier.size(size), contentDescription, shape, contentScale)
     } else {
-        Avatar(data = DefaultErrorResource, size, modifier, contentDescription, shape)
+        Avatar(data = DefaultErrorResource, size, modifier, contentDescription, shape, contentScale)
     }
 }
 
@@ -62,7 +63,8 @@ fun Avatar(
     data: Any?,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
-    shape: Shape = CircleShape
+    shape: Shape = CircleShape,
+    contentScale: ContentScale = ContentScale.Crop,
 ) {
     val context = LocalContext.current
     Box(modifier = modifier.clip(shape)) {
@@ -74,7 +76,7 @@ fun Avatar(
             contentDescription = contentDescription,
             placeholder = ColorPainter(MaterialTheme.colorScheme.outline),
             modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.Crop,
+            contentScale = contentScale,
         )
     }
 }
@@ -86,14 +88,15 @@ fun Avatar(
     size: Dp,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
-    shape: Shape = CircleShape
+    shape: Shape = CircleShape,
+    contentScale: ContentScale = ContentScale.Crop,
 ) = Image(
     painter = painterResource(id = data),
     contentDescription = contentDescription,
     modifier = modifier
         .size(size)
         .clip(shape = shape),
-    contentScale = ContentScale.Crop
+    contentScale = contentScale
 )
 
 @Composable

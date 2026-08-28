@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">贴吧 Lite</string>
+    <string name="app_name">可简吧</string>
     <string name="activity_translucent">透明主题</string>
     <string name="icon_new">新图标</string>
     <string name="icon_new_invert">新图标（反色）</string>
@@ -15,7 +15,16 @@
     <string name="shortcut_my_collect">我的收藏</string>
     <string name="shortcut_my_message">我的消息</string>
     <string name="shortcut_search">搜索</string>
-    <string name="forum_list_title">关注</string>
+    <string name="forum_list_title">我关注的吧</string>
+    <string name="title_home_footprints">我的足迹</string>
+    <string name="title_home_my_forums">我的吧</string>
+    <string name="title_home_forum_square">吧广场</string>
+    <string name="forum_square_load_error">加载失败，请重试</string>
+    <string name="forum_square_recommend_login">登录后可查看推荐贴吧，其他分类仍可浏览</string>
+    <string name="forum_square_recommend_unavailable">暂未获取到推荐结果，可稍后重试或浏览其他分类</string>
+    <string name="forum_square_empty">该分类暂无贴吧</string>
+    <string name="forum_square_paused">这一页没有新增贴吧，可点击继续加载</string>
+    <string name="forum_square_load_more">加载更多</string>
     <string name="title_refresh">刷新</string>
     <string name="title_copy_link">复制链接</string>
     <string name="toast_copy_success">已复制到剪贴板</string>
@@ -59,6 +68,21 @@
     <string name="title_remove_black">从黑名单移除</string>
     <string name="title_remove_white">从白名单移除</string>
     <string name="title_main">首页</string>
+    <string name="title_enter_forums">进吧</string>
+    <string name="title_following_feed">关注动态</string>
+    <string name="title_my_following">我的关注</string>
+    <string name="title_home_discover">发现</string>
+    <string name="tip_followed_login">登录后查看关注贴吧的推荐</string>
+    <string name="tip_followed_login_action">去登录</string>
+    <string name="tip_followed_no_forums">还没有关注贴吧</string>
+    <string name="tip_followed_no_matches">这批推荐中暂未找到关注贴吧的帖子</string>
+    <string name="tip_followed_feed_scope">仅从推荐内容中筛选已关注的吧，不代表这些吧的全部或最新帖子。</string>
+    <string name="tip_followed_continue">继续查找</string>
+    <string name="tip_followed_using_cache">关注列表同步失败，暂用上次同步的关注列表筛选</string>
+    <string name="title_my_posts">我的帖子</string>
+    <string name="tip_my_posts_login">登录后查看我的主帖和回复</string>
+    <string name="tip_my_collections_login">登录后查看我的收藏</string>
+    <string name="title_my_posts_threads">主帖</string>
     <string name="title_jump_page">跳页</string>
     <string name="tip_jump_page">当前 %1$d/%2$d 页</string>
     <string name="title_default">贴吧 Lite</string>
@@ -215,6 +239,7 @@
     <string name="hint_reply">回复 %1$s</string>
     <string name="tip_thread_store_update">更新到 %1$d 楼</string>
     <string name="title_switch_list_single">切换至单列</string>
+    <string name="title_home_list_style">列表样式</string>
     <string name="text_load_failed">加载失败</string>
     <string name="title_search_forum">搜吧</string>
     <string name="title_search_thread">搜贴</string>

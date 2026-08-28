@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -40,9 +41,6 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.hypot
 
-// Keep the original inventory vector and rendering path available for a one-line rollback.
-private const val UsePlanetHomeIcon = true
-
 /** Reveal the selected glyph from its center instead of shrinking the outline's holes. */
 @Composable
 internal fun MainNavigationIcon(
@@ -51,11 +49,22 @@ internal fun MainNavigationIcon(
     description: String?,
     modifier: Modifier = Modifier,
 ) {
-    if (destination === MainDestination.Home && UsePlanetHomeIcon) {
+    if (destination === MainDestination.Feed) {
         PlanetNavigationIcon(selected, description, modifier)
         return
     }
     val reduceMotion = LocalUISettings.current.reduceMotion
+    if (destination === MainDestination.Home) {
+        // Restore the original forum-entry vector and its own path animation.
+        val vector = AnimatedImageVector.animatedVectorResource(destination.iconRes)
+        val painter = if (reduceMotion) {
+            key(selected) { rememberAnimatedVectorPainter(vector, atEnd = selected) }
+        } else {
+            rememberAnimatedVectorPainter(vector, atEnd = selected)
+        }
+        Icon(painter = painter, contentDescription = description, modifier = modifier)
+        return
+    }
     val isNotification = destination === MainDestination.Notification
     val outline: Painter
     val filled: Painter

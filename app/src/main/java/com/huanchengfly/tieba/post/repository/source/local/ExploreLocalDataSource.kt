@@ -28,27 +28,27 @@ interface ExploreLocalDataSource {
 
     suspend fun loadHotThread(tabCode: String): HotThreadListResponseData?
 
-    suspend fun loadPersonalized(page: Int): PersonalizedResponseData?
+    suspend fun loadPersonalized(page: Int, scope: String? = null): PersonalizedResponseData?
 
     suspend fun loadUserLikeDataFirstPage(uid: Long): Pair<Long, UserLikeResponseData?>
 
     suspend fun saveHotThread(tabCode: String, data: HotThreadListResponseData): Boolean
 
-    suspend fun savePersonalized(data: PersonalizedResponseData, page: Int): Boolean
+    suspend fun savePersonalized(data: PersonalizedResponseData, page: Int, scope: String? = null): Boolean
 
     suspend fun saveUserLikeFirstPage(uid: Long, data: UserLikeResponseData): Boolean
 
     suspend fun purgeHotThread()
 
-    suspend fun purgePersonalized()
+    suspend fun purgePersonalized(scope: String? = null)
 
     suspend fun updateHotThreadLike(tabCode: String, threadId: Long, like: Like)
 
-    suspend fun updatePersonalizedLike(threadId: Long, like: Like)
+    suspend fun updatePersonalizedLike(threadId: Long, like: Like, uid: Long? = null)
 
     suspend fun updateUserLike(uid: Long, threadId: Long, like: Like)
 
-    suspend fun dislikePersonalized(threadId: Long)
+    suspend fun dislikePersonalized(threadId: Long, uid: Long? = null)
 }
 
 class ExploreLocalFileDataSource(@ApplicationContext context: Context): ExploreLocalDataSource {
@@ -58,7 +58,6 @@ class ExploreLocalFileDataSource(@ApplicationContext context: Context): ExploreL
 
         private const val CACHE_DIR_NAME = "Explore"
 
-        private const val CACHE_PERSONALIZED_PREFIX = "p_"
         private const val CACHE_HOT_PREFIX = "hot_"
 
         private const val HOT_THREAD_EXPIRE_MILL = 0x36EE80 // 1 hour
@@ -116,8 +115,8 @@ class ExploreLocalFileDataSource(@ApplicationContext context: Context): ExploreL
     /**
      * @return Cached personalized data at [page]
      * */
-    override suspend fun loadPersonalized(page: Int): PersonalizedResponseData? = withContext(Dispatchers.IO) {
-        val cacheFile = personalizedCacheFile(page)
+    override suspend fun loadPersonalized(page: Int, scope: String?): PersonalizedResponseData? = withContext(Dispatchers.IO) {
+        val cacheFile = personalizedCacheFile(page, scope)
         mutex.withLock {
             val cacheExpireMill = PERSONALIZED_EXPIRE_MILL.takeIf { page == 1 }?.toLong()
             try {
@@ -129,8 +128,8 @@ class ExploreLocalFileDataSource(@ApplicationContext context: Context): ExploreL
         }
     }
 
-    override suspend fun savePersonalized(data: PersonalizedResponseData, page: Int) = withContext(Dispatchers.IO) {
-        val cacheFile = personalizedCacheFile(page)
+    override suspend fun savePersonalized(data: PersonalizedResponseData, page: Int, scope: String?) = withContext(Dispatchers.IO) {
+        val cacheFile = personalizedCacheFile(page, scope)
         mutex.withLock {
             runCatching {
                 PersonalizedResponseData.ADAPTER.encodeCache(cacheOut = cacheFile, data)
@@ -139,27 +138,27 @@ class ExploreLocalFileDataSource(@ApplicationContext context: Context): ExploreL
         }
     }
 
-    override suspend fun dislikePersonalized(threadId: Long) = withContext(Dispatchers.IO) {
+    override suspend fun dislikePersonalized(threadId: Long, uid: Long?) = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
                 // Remove target thread from local cache
-                updatePersonalized { threadInfo -> threadInfo.takeUnless { threadInfo.id == threadId } }
+                updatePersonalized(uid) { threadInfo -> threadInfo.takeUnless { threadInfo.id == threadId } }
             } catch (e: Throwable) {
                 Log.e(TAG, "onDislikePersonalized", e)
-                purgePersonalized()
+                FileUtil.deleteWithPrefixSafe(cacheDir, personalizedAccountCachePrefix(uid))
             }
         }
     }
 
-    override suspend fun updatePersonalizedLike(threadId: Long, like: Like) = withContext(Dispatchers.IO) {
+    override suspend fun updatePersonalizedLike(threadId: Long, like: Like, uid: Long?) = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
-                updatePersonalized { threadInfo ->
+                updatePersonalized(uid) { threadInfo ->
                     if (threadInfo.id == threadId) threadInfo.setLikeStatus(like) else threadInfo
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "onUpdatePersonalizedLikeStatus", e)
-                purgePersonalized()
+                FileUtil.deleteWithPrefixSafe(cacheDir, personalizedAccountCachePrefix(uid))
             }
         }
     }
@@ -167,9 +166,9 @@ class ExploreLocalFileDataSource(@ApplicationContext context: Context): ExploreL
     /**
      * Delete all cached personalized page
      * */
-    override suspend fun purgePersonalized() = withContext(Dispatchers.IO) {
+    override suspend fun purgePersonalized(scope: String?) = withContext(Dispatchers.IO) {
         mutex.withLock {
-            FileUtil.deleteWithPrefixSafe(cacheDir, CACHE_PERSONALIZED_PREFIX)
+            FileUtil.deleteWithPrefixSafe(cacheDir, personalizedCachePrefix(scope))
         }
     }
 
@@ -245,18 +244,18 @@ class ExploreLocalFileDataSource(@ApplicationContext context: Context): ExploreL
         return File(cacheDir, "$CACHE_HOT_PREFIX$tabCode")
     }
 
-    private fun personalizedCacheFile(page: Int): File {
+    private fun personalizedCacheFile(page: Int, scope: String?): File {
         require(page > 0) { "Illegal page number: $page" }
         // Concat prefix and page number: p_1, p_2, p_3 ...
-        return File(cacheDir, "$CACHE_PERSONALIZED_PREFIX$page")
+        return File(cacheDir, "${personalizedCachePrefix(scope)}$page")
     }
 
     // Update local file cache of personalized threads
     // Migrate to Room Database?
     @Throws(IOException::class)
-    private suspend fun updatePersonalized(transform: (ThreadInfo) -> ThreadInfo?) {
+    private suspend fun updatePersonalized(uid: Long?, transform: (ThreadInfo) -> ThreadInfo?) {
         val start = System.currentTimeMillis()
-        val cachedPages = cacheDir.listFiles { it.name.startsWith(CACHE_PERSONALIZED_PREFIX) } ?: return
+        val cachedPages = cacheDir.listFiles { it.name.startsWith(personalizedAccountCachePrefix(uid)) } ?: return
         for (cacheFile in cachedPages) {
             val page = PersonalizedResponseData.ADAPTER.decodeCache(cacheFile) ?: continue
             val newData = withContext(Dispatchers.Default) {
@@ -293,7 +292,7 @@ class ExploreLocalFileDataSource(@ApplicationContext context: Context): ExploreL
                 PersonalizedResponseData.ADAPTER.encodeCache(cacheFile, newData)
                 cacheFile.setLastModified(lastModified)
                 Log.w(TAG, "onUpdatePersonalized: Cached page ${cacheFile.name} updated")
-                break
+                // A thread can occur in both the followed and discovery caches.
             }
         }
         val cost = System.currentTimeMillis() - start
@@ -305,7 +304,7 @@ class ExploreAssetsDataSource(@ApplicationContext val context: Context): Explore
 
     override suspend fun loadHotThread(tabCode: String): HotThreadListResponseData? = null
 
-    override suspend fun loadPersonalized(page: Int) = withContext(Dispatchers.IO) {
+    override suspend fun loadPersonalized(page: Int, scope: String?) = withContext(Dispatchers.IO) {
         context.assets.open("personalized/PersonalizedResponseData_12.52.1.0.pb").use { input ->
             PersonalizedResponseData.ADAPTER.decode(input)
         }
@@ -315,19 +314,19 @@ class ExploreAssetsDataSource(@ApplicationContext val context: Context): Explore
 
     override suspend fun saveHotThread(tabCode: String, data: HotThreadListResponseData): Boolean = true
 
-    override suspend fun savePersonalized(data: PersonalizedResponseData, page: Int): Boolean = true
+    override suspend fun savePersonalized(data: PersonalizedResponseData, page: Int, scope: String?): Boolean = true
 
     override suspend fun saveUserLikeFirstPage(uid: Long, data: UserLikeResponseData): Boolean = true
 
     override suspend fun purgeHotThread() {}
 
-    override suspend fun purgePersonalized() {}
+    override suspend fun purgePersonalized(scope: String?) {}
 
     override suspend fun updateHotThreadLike(tabCode: String, threadId: Long, like: Like) {}
 
-    override suspend fun updatePersonalizedLike(threadId: Long, like: Like) {}
+    override suspend fun updatePersonalizedLike(threadId: Long, like: Like, uid: Long?) {}
 
     override suspend fun updateUserLike(uid: Long, threadId: Long, like: Like) {}
 
-    override suspend fun dislikePersonalized(threadId: Long) {}
+    override suspend fun dislikePersonalized(threadId: Long, uid: Long?) {}
 }

@@ -9,6 +9,9 @@ import com.huanchengfly.tieba.post.ui.models.ThreadStore
 import com.huanchengfly.tieba.post.utils.AccountUtil
 import com.huanchengfly.tieba.post.utils.StringUtil
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.internal.toLongOrDefault
@@ -32,8 +35,10 @@ class ThreadStoreRepository @Inject constructor(
     /**
      * 加载收藏的帖子
      * */
-    suspend fun load(page: Int = 0, limit: Int = LOAD_LIMIT): List<ThreadStore> {
+    suspend fun load(page: Int = 0, limit: Int = LOAD_LIMIT, expectedUid: Long? = null): List<ThreadStore> {
+        requireAccount(expectedUid)
         val data = networkDataSource.load(page, limit)
+        requireAccount(expectedUid)
         val showBothName = settingsRepository.habitSettings.snapshot().showBothName
         return data.mapUiModel(showBothName)
     }
@@ -45,8 +50,19 @@ class ThreadStoreRepository @Inject constructor(
     /**
      * 取消收藏这个帖子
      * */
-    suspend fun remove(thread: ThreadStore) = runCatching {
-        networkDataSource.remove(threadId = thread.id, tbs = requireTBS())
+    suspend fun remove(thread: ThreadStore, expectedUid: Long? = null) = runCatching {
+        requireAccount(expectedUid)
+        val tbs = requireTBS()
+        requireAccount(expectedUid)
+        networkDataSource.remove(threadId = thread.id, tbs = tbs)
+        requireAccount(expectedUid)
+    }
+
+    private suspend fun requireAccount(expectedUid: Long?) {
+        currentCoroutineContext().ensureActive()
+        if (expectedUid != null && settingsRepository.accountUid.first() != expectedUid) {
+            throw CancellationException("Collection account changed")
+        }
     }
 
     /**

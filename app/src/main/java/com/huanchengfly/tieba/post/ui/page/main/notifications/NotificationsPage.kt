@@ -32,6 +32,7 @@ import com.huanchengfly.tieba.post.ui.page.main.MainNavigationSuiteType.Companio
 import com.huanchengfly.tieba.post.ui.page.main.OnMainNavigationScrollTopEvent
 import com.huanchengfly.tieba.post.ui.page.main.bottomNavigationPlaceholder
 import com.huanchengfly.tieba.post.ui.page.main.calculateMainNavigationSuiteType
+import com.huanchengfly.tieba.post.ui.page.main.mainTopBarDividers
 import com.huanchengfly.tieba.post.ui.page.main.notifications.list.NotificationsListPage
 import com.huanchengfly.tieba.post.ui.page.main.notifications.list.NotificationsType
 import com.huanchengfly.tieba.post.ui.widgets.compose.AccountNavIconIfCompact
@@ -132,6 +133,7 @@ private fun NotificationsToolBar(
 ) {
     if (fromHome) {
         TopAppBarPaged(
+            modifier = Modifier.mainTopBarDividers(),
             title = { Text(text = stringResource(R.string.title_notifications)) },
             navigationIcon = {
                 AccountNavIconIfCompact(onLoginClicked = { navigator.navigate(Destination.Login) })

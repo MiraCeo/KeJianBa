@@ -34,14 +34,14 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.huanchengfly.tieba.post"
+        applicationId = "io.github.miraceo.kejianba"
         minSdk = libs.versions.minSdk.get().toInt()
         //noinspection OldTargetApi
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 391033
         versionName = "4.0.0 Beta 5.2"
         // Configure custom runner to set up the Hilt test application
-        testInstrumentationRunner = "$applicationId.TbLiteTestRunner"
+        testInstrumentationRunner = "com.huanchengfly.tieba.post.TbLiteTestRunner"
         vectorDrawables {
             useSupportLibrary = true
         }

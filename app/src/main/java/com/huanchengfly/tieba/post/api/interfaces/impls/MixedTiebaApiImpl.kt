@@ -1474,7 +1474,7 @@ object MixedTiebaApiImpl : ITiebaApi {
                 UserPostRequest(
                     UserPostRequestData(
                         uid = uid,
-                        rn = 20,
+                        rn = com.huanchengfly.tieba.post.api.USER_POST_PAGE_SIZE,
                         is_thread = if (isThread) 1 else 0,
                         need_content = 1,
                         pn = page,

@@ -1,11 +1,16 @@
 package com.huanchengfly.tieba.post.ui.page.threadstore
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -13,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
@@ -45,127 +51,165 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.PullToRefreshBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.SharedTransitionUserHeader
 import com.huanchengfly.tieba.post.ui.widgets.compose.SwipeUpLazyLoadColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.TitleCentredToolbar
+import com.huanchengfly.tieba.post.ui.widgets.compose.TipScreen
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
+import com.huanchengfly.tieba.post.utils.LocalAccount
 
 @Composable
-fun ThreadStorePage(
-    navigator: NavController,
-    viewModel: ThreadStoreViewModel = hiltViewModel()
-) {
+fun ThreadStorePage(navigator: NavController) {
     MyScaffold(
         topBar = {
             TitleCentredToolbar(
-                title = stringResource(id = R.string.title_my_collect),
-                navigationIcon = {
-                    BackNavigationIcon(onBackPressed = navigator::navigateUp)
-                },
+                title = stringResource(R.string.title_my_collect),
+                navigationIcon = { BackNavigationIcon(onBackPressed = navigator::navigateUp) },
             )
         },
     ) { contentPadding ->
-        val context = LocalContext.current
-        val snackbarHostState = LocalSnackbarHostState.current
+        ThreadStoreContent(navigator, contentPadding)
+    }
+}
 
-        val isRefreshing by viewModel.uiState.collectPartialAsState(
-            prop1 = ThreadStoreUiState::isRefreshing,
+/** Shared list for the standalone collection screen and the dynamic tab. */
+@Composable
+fun ThreadStoreContent(
+    navigator: NavController,
+    contentPadding: PaddingValues,
+    listState: LazyListState = rememberLazyListState(),
+    embedded: Boolean = false,
+) {
+    val uid = LocalAccount.current?.uid
+    if (uid == null) {
+        Box(Modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center) {
+            TipScreen(
+                title = { Text(stringResource(R.string.tip_my_collections_login)) },
+                actions = {
+                    FilledTonalButton(onClick = { navigator.navigateDebounced(Destination.Login) }) {
+                        Text(stringResource(R.string.button_login))
+                    }
+                },
+            )
+        }
+    } else {
+        ThreadStoreList(navigator, contentPadding, listState, embedded,
+            viewModel = hiltViewModel<ThreadStoreViewModel, ThreadStoreViewModel.Factory>(key = "collections:$uid") {
+                it.create(uid)
+            })
+    }
+}
+
+@Composable
+private fun ThreadStoreList(
+    navigator: NavController,
+    contentPadding: PaddingValues,
+    listState: LazyListState,
+    embedded: Boolean,
+    viewModel: ThreadStoreViewModel,
+) {
+    val context = LocalContext.current
+    val snackbarHostState = LocalSnackbarHostState.current
+
+    val isRefreshing by viewModel.uiState.collectPartialAsState(
+        prop1 = ThreadStoreUiState::isRefreshing,
+        initial = false
+    )
+    val isEmpty by viewModel.uiState.collectPartialAsState(
+        prop1 = ThreadStoreUiState::isEmpty,
+        initial = true
+    )
+
+    val error by viewModel.uiState.collectPartialAsState(
+        prop1 = ThreadStoreUiState::error,
+        initial = null
+    )
+
+    viewModel.uiEvent.collectUiEventWithLifecycle { event ->
+        val message = when(event) {
+            is ThreadStoreUiEvent -> event.toMessage(context)
+
+            is CommonUiEvent.Toast -> event.message.toString()
+
+            else -> Unit
+        }
+        if (message is String) {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    StateScreen(
+        isEmpty = isEmpty,
+        isLoading = isRefreshing && isEmpty,
+        error = error,
+        onReload = viewModel::onRefresh,
+        screenPadding = contentPadding,
+    ) {
+        val isLoadingMore by viewModel.uiState.collectPartialAsState(
+            prop1 = ThreadStoreUiState::isLoadingMore,
             initial = false
         )
-        val isEmpty by viewModel.uiState.collectPartialAsState(
-            prop1 = ThreadStoreUiState::isEmpty,
+        val hasMore by viewModel.uiState.collectPartialAsState(
+            prop1 = ThreadStoreUiState::hasMore,
             initial = true
         )
-
-        val error by viewModel.uiState.collectPartialAsState(
-            prop1 = ThreadStoreUiState::error,
-            initial = null
+        val data by viewModel.uiState.collectPartialAsState(
+            prop1 = ThreadStoreUiState::data,
+            initial = emptyList()
         )
 
-        viewModel.uiEvent.collectUiEventWithLifecycle { event ->
-            val message = when(event) {
-                is ThreadStoreUiEvent -> event.toMessage(context)
+        val habit = LocalHabitSettings.current
 
-                is CommonUiEvent.Toast -> event.message.toString()
-
-                else -> Unit
-            }
-            if (message is String) {
-                snackbarHostState.currentSnackbarData?.dismiss()
-                snackbarHostState.showSnackbar(message)
-            }
+        // Initialize click listeners now
+        val onUserClicked: (Author, String) -> Unit = { author, extraKey ->
+            val route = author.run { UserProfile(id, avatarUrl, name, transitionKey = extraKey) }
+            navigator.navigateDebounced(route)
         }
 
-        StateScreen(
-            isEmpty = isEmpty,
-            isLoading = isRefreshing,
-            error = error,
-            onReload = viewModel::onRefresh,
-            screenPadding = contentPadding,
-        ) {
-            val isLoadingMore by viewModel.uiState.collectPartialAsState(
-                prop1 = ThreadStoreUiState::isLoadingMore,
-                initial = false
-            )
-            val hasMore by viewModel.uiState.collectPartialAsState(
-                prop1 = ThreadStoreUiState::hasMore,
-                initial = true
-            )
-            val data by viewModel.uiState.collectPartialAsState(
-                prop1 = ThreadStoreUiState::data,
-                initial = emptyList()
-            )
-
-            val habit = LocalHabitSettings.current
-
-            // Initialize click listeners now
-            val onUserClicked: (Author, String) -> Unit = { author, extraKey ->
-                val route = author.run { UserProfile(id, avatarUrl, name, transitionKey = extraKey) }
-                navigator.navigateDebounced(route)
-            }
-
-            val onThreadClicked: (ThreadStore) -> Unit = { thread ->
-                navigator.navigateDebounced(
-                    route = Thread(
-                        threadId = thread.id,
-                        postId = thread.markPid,
-                        seeLz = habit.favoriteSeeLz,
-                        sortType = if (habit.favoriteDesc) ThreadSortType.BY_DESC else ThreadSortType.DEFAULT,
-                        from = ThreadFrom.Store(maxPid = thread.maxPid, maxFloor = thread.postNo)
-                    )
+        val onThreadClicked: (ThreadStore) -> Unit = { thread ->
+            navigator.navigateDebounced(
+                route = Thread(
+                    threadId = thread.id,
+                    postId = thread.markPid,
+                    seeLz = habit.favoriteSeeLz,
+                    sortType = if (habit.favoriteDesc) ThreadSortType.BY_DESC else ThreadSortType.DEFAULT,
+                    from = ThreadFrom.Store(maxPid = thread.maxPid, maxFloor = thread.postNo)
                 )
-            }
+            )
+        }
 
-            PullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = viewModel::onRefresh,
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = viewModel::onRefresh,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = contentPadding,
+        ) {
+            SwipeUpLazyLoadColumn(
                 modifier = Modifier.fillMaxSize(),
+                state = listState,
                 contentPadding = contentPadding,
+                isLoading = isLoadingMore,
+                onLoad = viewModel::onLoadMore,
+                onLazyLoad = viewModel::onLoadMore.takeIf { hasMore },
+                bottomIndicator = {
+                    LoadMoreIndicator(noMore = !hasMore, onThreshold = it)
+                }
             ) {
-                SwipeUpLazyLoadColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = contentPadding,
-                    isLoading = isLoadingMore,
-                    onLoad = viewModel::onLoadMore,
-                    onLazyLoad = viewModel::onLoadMore.takeIf { hasMore },
-                    bottomIndicator = {
-                        LoadMoreIndicator(noMore = !hasMore, onThreshold = it)
-                    }
-                ) {
-                    items(items = data, key = { it.id }) { info ->
-                        StoreItem(
-                            info = info,
-                            onUserClick = onUserClicked,
-                            onClick = onThreadClicked,
-                            onDelete = viewModel::onDelete
-                        )
-                    }
+                items(items = data, key = { it.id }) { info ->
+                    StoreItem(
+                        info = info,
+                        onUserClick = onUserClicked,
+                        onClick = onThreadClicked,
+                        onDelete = viewModel::onDelete
+                    )
                 }
             }
         }
+    }
 
-        LaunchedEffect(Unit) {
-            navigator.consumeResult<Destination.ThreadStore, ThreadResult>(ThreadResultKey)?.run {
-                viewModel.onThreadResult(threadId, markedPostId)
-            }
-        }
+    LaunchedEffect(viewModel, embedded) {
+        val result = if (embedded) navigator.consumeResult<Destination.Main, ThreadResult>(ThreadResultKey)
+            else navigator.consumeResult<Destination.ThreadStore, ThreadResult>(ThreadResultKey)
+        if (result != null) viewModel.onThreadResult(result.threadId, result.markedPostId)
+        else viewModel.onRefresh()
     }
 }
 

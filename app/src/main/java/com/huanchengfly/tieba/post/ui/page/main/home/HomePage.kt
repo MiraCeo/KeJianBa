@@ -26,21 +26,31 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.NonRestartableComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,7 +64,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -78,16 +87,15 @@ import com.google.accompanist.placeholder.PlaceholderDefaults
 import com.huanchengfly.tieba.post.LocalUISettings
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.api.retrofit.exception.TiebaNotLoggedInException
-import com.huanchengfly.tieba.post.arch.isOverlapping
 import com.huanchengfly.tieba.post.models.database.History
 import com.huanchengfly.tieba.post.navigateDebounced
-import com.huanchengfly.tieba.post.theme.DefaultDarkColors
+import com.huanchengfly.tieba.post.plus
 import com.huanchengfly.tieba.post.theme.TiebaLiteTheme
 import com.huanchengfly.tieba.post.ui.ForumAvatarSharedBoundsKey
 import com.huanchengfly.tieba.post.ui.ForumTitleSharedBoundsKey
-import com.huanchengfly.tieba.post.ui.SearchToolbarSharedBoundsKey
 import com.huanchengfly.tieba.post.ui.common.LocalAnimatedVisibilityScope
 import com.huanchengfly.tieba.post.ui.common.LocalSharedTransitionScope
+import com.huanchengfly.tieba.post.ui.common.animateEnterExit
 import com.huanchengfly.tieba.post.ui.common.localSharedBounds
 import com.huanchengfly.tieba.post.ui.common.theme.compose.clickableNoIndication
 import com.huanchengfly.tieba.post.ui.common.theme.compose.onCase
@@ -96,26 +104,29 @@ import com.huanchengfly.tieba.post.ui.models.LikedForum
 import com.huanchengfly.tieba.post.ui.page.Destination
 import com.huanchengfly.tieba.post.ui.page.LocalNavController
 import com.huanchengfly.tieba.post.ui.page.main.MainDestination
+import com.huanchengfly.tieba.post.ui.page.main.MainPageTabs
+import com.huanchengfly.tieba.post.ui.page.main.MainCardStyle
 import com.huanchengfly.tieba.post.ui.page.main.MainNavigationSuiteType.Companion.isFloatingNavigationBar
 import com.huanchengfly.tieba.post.ui.page.main.OnMainNavigationScrollTopEvent
+import com.huanchengfly.tieba.post.ui.page.main.PlanetNavigationIcon
 import com.huanchengfly.tieba.post.ui.page.main.bottomNavigationPlaceholder
 import com.huanchengfly.tieba.post.ui.page.main.calculateMainNavigationSuiteType
-import com.huanchengfly.tieba.post.ui.page.main.explore.topAppBarBlurEffect
 import com.huanchengfly.tieba.post.ui.widgets.compose.AccountNavIconIfCompact
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
-import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
+import com.huanchengfly.tieba.post.ui.widgets.compose.ForumAvatar
+import com.huanchengfly.tieba.post.ui.widgets.compose.ForumAvatarShape
 import com.huanchengfly.tieba.post.ui.widgets.compose.Chip
 import com.huanchengfly.tieba.post.ui.widgets.compose.ConfirmDialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.ErrorScreen
 import com.huanchengfly.tieba.post.ui.widgets.compose.LocalHazeState
 import com.huanchengfly.tieba.post.ui.widgets.compose.LongClickMenu
-import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyVerticalGrid
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.PositiveButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.PullToRefreshBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.Sizes
 import com.huanchengfly.tieba.post.ui.widgets.compose.TipScreen
-import com.huanchengfly.tieba.post.ui.widgets.compose.TopAppBarPaged
+import com.huanchengfly.tieba.post.ui.widgets.compose.CenterAlignedTopAppBar
+import com.huanchengfly.tieba.post.ui.page.main.mainTopBarDividers
 import com.huanchengfly.tieba.post.ui.widgets.compose.color
 import com.huanchengfly.tieba.post.ui.widgets.compose.placeholder
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
@@ -127,50 +138,116 @@ import kotlin.random.Random
 
 private val FORUM_AVATAR_SIZE = 40.dp
 
-@Preview("DummySearchBox")
-@Composable
-private fun DummySearchBoxPreview() {
-    Column {
-        TiebaLiteTheme {
-            DummySearchBox(onClick = {})
-        }
-
-        TiebaLiteTheme(colorSchemeExt = DefaultDarkColors) {
-            DummySearchBox(onClick =  {})
-        }
-    }
-}
+// Card insets must not make the two-column mode fall back to one column.
+internal fun homeForumGridCells(singleColumn: Boolean): GridCells =
+    GridCells.Fixed(if (singleColumn) 1 else 2)
 
 @Composable
-private fun DummySearchBox(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .fillMaxWidth()
-            .then(modifier),
-        shape = MaterialTheme.shapes.small,
-        tonalElevation = 6.dp
+private fun HomeForumActions(
+    isSigning: Boolean,
+    onSign: () -> Unit,
+    onListModeChanged: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        TextButton(
+            onClick = onSign,
+            enabled = !isSigning,
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
         ) {
             Icon(
-                imageVector = Icons.Rounded.Search,
+                imageVector = ImageVector.vectorResource(R.drawable.ic_oksign),
                 contentDescription = null,
-                modifier = Modifier.size(Sizes.Tiny),
+                modifier = Modifier.size(18.dp),
             )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(text = stringResource(id = R.string.hint_search), style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.title_oksign), maxLines = 1)
+        }
+        IconButton(onClick = onListModeChanged) {
+            Icon(
+                imageVector = Icons.Outlined.ViewAgenda,
+                contentDescription = stringResource(R.string.title_home_list_style),
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+// Keep the relocated actions available during loading, empty and error states too.
+@Composable
+private fun HomeStateContent(
+    showForumHeader: Boolean,
+    actions: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Column(Modifier.fillMaxSize().onCase(showForumHeader && MainCardStyle.enabled) {
+        padding(horizontal = MainCardStyle.horizontalSpacing, vertical = MainCardStyle.verticalSpacing)
+            .clip(MainCardStyle.shape)
+            .background(MainCardStyle.container)
+    }) {
+        if (showForumHeader) FollowedForumsHeader(actions = actions)
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            content()
         }
     }
 }
 
 @Composable
-private fun Header(text: String, modifier: Modifier = Modifier, invert: Boolean = false) {
+private fun Header(
+    text: String,
+    modifier: Modifier = Modifier,
+    invert: Boolean = false,
+    maxLines: Int = Int.MAX_VALUE,
+    icon: (@Composable () -> Unit)? = null,
+) {
     Box(modifier = modifier) {
-        Chip(text = text, modifier = Modifier.padding(start = 16.dp), invertColor = invert)
+        if (invert) {
+            Chip(text = text, modifier = Modifier.padding(start = 16.dp), invertColor = true)
+        } else {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (icon != null) {
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
+                        Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { icon() }
+                    }
+                }
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = maxLines,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FollowedForumsHeader(
+    modifier: Modifier = Modifier,
+    actions: @Composable () -> Unit = {},
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Header(
+            text = stringResource(R.string.forum_list_title),
+            modifier = Modifier.weight(1f).padding(vertical = 12.dp),
+            maxLines = 1,
+            icon = {
+                // A constant unselected state reuses the existing silhouette without animating.
+                PlanetNavigationIcon(selected = false, description = null, modifier = Modifier.fillMaxSize())
+            },
+        )
+        actions()
     }
 }
 
@@ -186,7 +263,7 @@ private fun ForumItemPlaceholder(showAvatar: Boolean) {
             Box(
                 modifier = Modifier
                     .size(FORUM_AVATAR_SIZE)
-                    .placeholder(color = placeholderColor, shape = CircleShape),
+                    .placeholder(color = placeholderColor, shape = ForumAvatarShape),
             )
             Spacer(modifier = Modifier.width(14.dp))
         }
@@ -236,6 +313,33 @@ fun HistoryItem(
 }
 
 @Composable
+private fun HomeFootprintItem(history: History, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(76.dp)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 2.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ForumAvatar(
+            data = history.avatar,
+            size = Sizes.Medium,
+        )
+        Text(
+            text = history.name,
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
 private fun HistoryRow(modifier: Modifier = Modifier, history: List<History>, onClick: (History) -> Unit) {
     var expandHistoryForum by rememberSaveable { mutableStateOf(true) }
 
@@ -243,19 +347,25 @@ private fun HistoryRow(modifier: Modifier = Modifier, history: List<History>, on
         targetValue = if (expandHistoryForum) 90f else 0f,
         label = "ExpandRotateAnim"
     )
-    val colorScheme = MaterialTheme.colorScheme
-
-    Column(modifier = modifier) {
+    Column(modifier = modifier.onCase(MainCardStyle.enabled) {
+        padding(vertical = MainCardStyle.verticalSpacing)
+            .clip(MainCardStyle.shape)
+            .background(MainCardStyle.container)
+    }) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .clickableNoIndication { expandHistoryForum = !expandHistoryForum }
-                .padding(vertical = 8.dp)
+                .padding(vertical = 12.dp)
                 .padding(end = 16.dp)
         ) {
-            Header(text = stringResource(id = R.string.title_history_forum))
-
-            Spacer(modifier = Modifier.weight(1f))
+            Header(
+                text = stringResource(id = R.string.title_home_footprints),
+                modifier = Modifier.weight(1f),
+                icon = {
+                    Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.fillMaxSize())
+                },
+            )
 
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -268,15 +378,12 @@ private fun HistoryRow(modifier: Modifier = Modifier, history: List<History>, on
 
         AnimatedVisibility(visible = expandHistoryForum) {
             LazyRow(
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(items = history, key = { it.id }) {
-                    HistoryItem(
-                        title = it.name,
-                        avatar = { Avatar(data = it.avatar, size = Sizes.Tiny) },
-                        color = colorScheme.surfaceContainer,
-                        contentColor = colorScheme.onSurface,
+                    HomeFootprintItem(
+                        history = it,
                         onClick = { onClick(it) }
                     )
                 }
@@ -295,7 +402,7 @@ private fun ForumItemContent(forum: LikedForum, showAvatar: Boolean) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (showAvatar) {
-            Avatar(
+            ForumAvatar(
                 data = forum.avatar,
                 modifier = Modifier
                     .padding(end = 14.dp)
@@ -310,7 +417,7 @@ private fun ForumItemContent(forum: LikedForum, showAvatar: Boolean) {
                 modifier = Modifier.onCase(showAvatar) { // Enable transition on List Mode (showAvatar)
                     localSharedBounds(key = ForumTitleSharedBoundsKey(forum.name, null))
                 },
-                overflow = TextOverflow.MiddleEllipsis,
+                overflow = TextOverflow.Ellipsis,
                 maxLines = 1,
                 style = MaterialTheme.typography.titleSmall
             )
@@ -388,6 +495,7 @@ private val DefaultGridSpan: LazyGridItemSpanScope.() -> GridItemSpan = {
 private sealed interface ForumType {
     object Header: ForumType
     object History: ForumType
+    object Footer: ForumType
     object ListItem: ForumType
     object GridItem: ForumType
 }
@@ -404,7 +512,18 @@ fun AnimatedVisibilityScope.HomePage(
     val context = LocalContext.current
     val navigator = LocalNavController.current
     val gridState = rememberLazyGridState()
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    val pageTitles = remember { listOf(R.string.title_home_my_forums, R.string.title_home_forum_square) }
+    val pagerState = rememberPagerState { pageTitles.size }
+    val forumActions: @Composable () -> Unit = {
+        if (loggedIn) {
+            val isSigning by viewModel.isOkSignWorkerRunning.collectAsStateWithLifecycle(true)
+            HomeForumActions(
+                isSigning = isSigning,
+                onSign = { TiebaUtil.startSign(context) },
+                onListModeChanged = viewModel::onListModeChanged,
+            )
+        }
+    }
 
     var unfollowForum by remember { mutableStateOf<LikedForum?>(null) }
     val confirmUnfollowDialog = rememberDialogState()
@@ -422,49 +541,36 @@ fun AnimatedVisibilityScope.HomePage(
     }
 
     MyScaffold(
-        useMD2Layout = hazeState == null,
+        useMD2Layout = true,
         topBar = {
-            TopAppBarPaged(
+            val toolbarColor = MaterialTheme.colorScheme.surface.copy(alpha = 1f)
+            CenterAlignedTopAppBar(
+                expandedHeight = 56.dp,
                 modifier = Modifier
-                    .topAppBarBlurEffect(
-                        sharedTransitionScope = sharedTransitionScope,
-                        rootAnimatedVisibilityScope = LocalAnimatedVisibilityScope.current,
-                        hazeState = hazeState,
-                        blurEnabled = { gridState.canScrollBackward || scrollBehavior.isOverlapping }
-                    ),
-                title = { Text(text = stringResource(R.string.title_main)) },
+                    .onNotNull(LocalAnimatedVisibilityScope.current, sharedTransitionScope) { (rootScope, sharedScope) ->
+                        animateEnterExit(
+                            zIndexInOverlay = 1.0f,
+                            animatedVisibilityScope = rootScope,
+                            sharedTransitionScope = sharedScope,
+                        )
+                    }
+                    .mainTopBarDividers(),
+                title = { MainPageTabs(pagerState = pagerState, titles = pageTitles) },
                 navigationIcon = {
                     AccountNavIconIfCompact(onLoginClicked = { navigator.navigate(Destination.Login) })
                 },
                 actions = {
-                    if (loggedIn) {
-                        val isSinging by viewModel.isOkSignWorkerRunning.collectAsStateWithLifecycle(true)
-                        ActionItem(
-                            icon = ImageVector.vectorResource(id = R.drawable.ic_oksign),
-                            contentDescription = R.string.title_oksign,
-                            enabled = !isSinging
-                        ) {
-                            TiebaUtil.startSign(context)
-                        }
-
-                        ActionItem(
-                            icon = Icons.Outlined.ViewAgenda,
-                            contentDescription = R.string.title_switch_list_single,
-                            onClick = viewModel::onListModeChanged
-                        )
-                    }
+                    ActionItem(
+                        icon = Icons.Rounded.Search,
+                        contentDescription = R.string.title_search,
+                        onClick = { navigator.navigateDebounced(route = Destination.Search) },
+                    )
                 },
-                scrollBehavior = scrollBehavior,
-                canScrollBackward = {
-                    sharedTransitionScope?.isTransitionActive != true && !transition.isRunning && gridState.canScrollBackward
-                },
-            ) {
-                DummySearchBox(
-                    modifier = Modifier.localSharedBounds(key = SearchToolbarSharedBoundsKey, zIndexInOverlay = 2.0f),
-                    onClick = { navigator.navigateDebounced(route = Destination.Search) }
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-            }
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = toolbarColor,
+                    scrolledContainerColor = toolbarColor,
+                ),
+            )
         },
         bottomBar = bottomNavigationPlaceholder, // MainPage BottomNavBar placeholder
         bottomBarAtop = calculateMainNavigationSuiteType().isFloatingNavigationBar,
@@ -478,10 +584,13 @@ fun AnimatedVisibilityScope.HomePage(
         val isEmpty = pinnedForums.itemCount == 0 && forums.itemCount == 0
         val isPinnedNotEmpty = pinnedForums.itemCount > 0
         val isLoading = uiState.isLoading || historyForums == null
+        val useCards = MainCardStyle.enabled
+        val cardInset = if (useCards) MainCardStyle.horizontalSpacing else 0.dp
+        val gridPadding = contentPaddings + PaddingValues(horizontal = cardInset)
 
         val listSingle = LocalUISettings.current.homeForumList
         val gridCells = remember(listSingle) {
-            if (listSingle) GridCells.Fixed(1) else GridCells.Adaptive(180.dp)
+            homeForumGridCells(singleColumn = listSingle)
         }
 
         // Initialize click listeners now
@@ -499,89 +608,123 @@ fun AnimatedVisibilityScope.HomePage(
 
         OnMainNavigationScrollTopEvent<MainDestination.Home>(
             coroutineScope = coroutineScope,
-            topAppBarState = scrollBehavior.state,
-            gridState = gridState,
+            gridState = gridState.takeIf { pagerState.currentPage == 0 },
             listState = { null }
         )
 
-        StateScreen(
-            isEmpty = isEmpty,
-            isError = uiState.error != null,
-            isLoading = uiState.isLoading,
-            onReload = viewModel::onRefresh.takeIf { loggedIn },
-            emptyScreen = {
-                EmptyScreen(onExploreClicked = onOpenExplore)
-            },
-            loadingScreen = {
-                HomePageSkeletonScreen(listSingle = listSingle, gridCells = gridCells)
-            },
-            errorScreen = {
-                if (uiState.error is TiebaNotLoggedInException) {
-                    GuestScreen(onExploreClicked = onOpenExplore) {
-                        navigator.navigateDebounced(Destination.Login)
+        HorizontalPager(
+            state = pagerState,
+            key = { pageTitles[it] },
+            modifier = Modifier.fillMaxSize().onCase(useCards) { background(MainCardStyle.background) },
+            // Keep My Forums' remembered UI state while the square is selected.
+            beyondViewportPageCount = 1,
+            verticalAlignment = Alignment.Top,
+            flingBehavior = PagerDefaults.flingBehavior(pagerState, snapPositionalThreshold = 0.75f),
+        ) { page ->
+            if (page == 1) {
+                ForumSquarePage(contentPadding = contentPaddings, isActive = pagerState.settledPage == 1)
+                return@HorizontalPager
+            }
+            StateScreen(
+                modifier = Modifier.onCase(useCards) { background(MainCardStyle.background) },
+                isEmpty = isEmpty,
+                isError = uiState.error != null,
+                isLoading = uiState.isLoading,
+                onReload = viewModel::onRefresh.takeIf { loggedIn },
+                emptyScreen = {
+                    HomeStateContent(showForumHeader = loggedIn, actions = forumActions) {
+                        EmptyScreen(onExploreClicked = onOpenExplore)
                     }
-                } else  {
-                    ErrorScreen(error = uiState.error)
-                }
-            },
-            screenPadding = contentPaddings
-        ) {
-            PullToRefreshBox(
-                isRefreshing = isLoading,
-                onRefresh = viewModel::onRefresh,
-                contentPadding = contentPaddings
-            ) {
-                MyLazyVerticalGrid(
-                    columns = gridCells,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .onNotNull(hazeState) { hazeSource(state = it.state) }
-                        .nestedScroll(scrollBehavior.nestedScrollConnection),
-                    state = gridState,
-                    contentPadding = contentPaddings,
-                ) {
-                    historyForums?.takeUnless { it.isEmpty() }?.let {
-                        item(key = ForumType.History.hashCode(), DefaultGridSpan, { ForumType.History }) {
-                            HistoryRow(history = it, onClick = onHistoryClickedListener)
+                },
+                loadingScreen = {
+                    HomePageSkeletonScreen(listSingle = listSingle, gridCells = gridCells, actions = forumActions)
+                },
+                errorScreen = {
+                    HomeStateContent(showForumHeader = loggedIn, actions = forumActions) {
+                        if (uiState.error is TiebaNotLoggedInException) {
+                            GuestScreen(onExploreClicked = onOpenExplore) {
+                                navigator.navigateDebounced(Destination.Login)
+                            }
+                        } else  {
+                            ErrorScreen(error = uiState.error)
                         }
                     }
+                },
+                screenPadding = contentPaddings
+            ) {
+                PullToRefreshBox(
+                    isRefreshing = isLoading,
+                    onRefresh = viewModel::onRefresh,
+                    contentPadding = contentPaddings
+                ) {
+                    // Home handles scroll-to-top above, only for the currently selected page.
+                    LazyVerticalGrid(
+                        columns = gridCells,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .onNotNull(hazeState) { hazeSource(state = it.state) }
+                            .followedForumsCard(
+                                state = gridState,
+                                firstSectionIndex = if (!historyForums.isNullOrEmpty()) 1 else 0,
+                                enabled = useCards,
+                                contentPadding = gridPadding,
+                            ),
+                        state = gridState,
+                        contentPadding = gridPadding,
+                    ) {
+                        historyForums?.takeUnless { it.isEmpty() }?.let {
+                            item(key = ForumType.History.hashCode(), DefaultGridSpan, { ForumType.History }) {
+                                HistoryRow(history = it, onClick = onHistoryClickedListener)
+                            }
+                        }
 
-                    if (isPinnedNotEmpty) {
-                        item(key = R.string.title_top_forum, DefaultGridSpan, { ForumType.Header }) {
-                            Header(
-                                text = stringResource(id = R.string.title_top_forum),
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                invert = true
+                        item(key = FollowedForumsHeaderKey, DefaultGridSpan, { ForumType.Header }) {
+                            FollowedForumsHeader(
+                                actions = forumActions,
                             )
                         }
+                        if (isPinnedNotEmpty) {
+                            item(key = R.string.title_top_forum, DefaultGridSpan, { ForumType.Header }) {
+                                Header(
+                                    text = stringResource(id = R.string.title_top_forum),
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    invert = true
+                                )
+                            }
+                            forumItems(
+                                forums = pinnedForums,
+                                isTopPinnedForum = true,
+                                showAvatar = listSingle,
+                                onClick = onForumClickedListener,
+                                onUnfollow = onUnfollow,
+                                onPinnedForumChanged = viewModel::onPinnedForumChanged,
+                            )
+                            if (forums.itemCount > 0) {
+                                item(key = "home-pinned-divider", DefaultGridSpan, { ForumType.Header }) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                    )
+                                }
+                            }
+                        }
+
                         forumItems(
-                            forums = pinnedForums,
-                            isTopPinnedForum = true,
+                            forums = forums,
+                            isTopPinnedForum = false,
                             showAvatar = listSingle,
                             onClick = onForumClickedListener,
                             onUnfollow = onUnfollow,
                             onPinnedForumChanged = viewModel::onPinnedForumChanged,
                         )
-                    }
-
-                    if (!historyForums.isNullOrEmpty() || isPinnedNotEmpty) {
-                        item(key = R.string.forum_list_title, DefaultGridSpan, { ForumType.Header }) {
-                            Header(text = stringResource(id = R.string.forum_list_title))
+                        item(key = FollowedForumsFooterKey, DefaultGridSpan, { ForumType.Footer }) {
+                            Spacer(Modifier.height(12.dp))
                         }
                     }
-                    forumItems(
-                        forums = forums,
-                        isTopPinnedForum = false,
-                        showAvatar = listSingle,
-                        onClick = onForumClickedListener,
-                        onUnfollow = onUnfollow,
-                        onPinnedForumChanged = viewModel::onPinnedForumChanged,
-                    )
                 }
             }
         }
-
-        ReportDrawnWhen { !uiState.isLoading }
+        ReportDrawnWhen { pagerState.currentPage == 1 || !uiState.isLoading }
     }
 }
 
@@ -600,15 +743,28 @@ private fun ExploreButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
 private fun HomePageSkeletonScreen(
     modifier: Modifier = Modifier,
     listSingle: Boolean,
-    gridCells: GridCells
+    gridCells: GridCells,
+    actions: @Composable () -> Unit = {},
 ) {
-    MyLazyVerticalGrid(
+    val state = rememberLazyGridState()
+    val useCards = MainCardStyle.enabled
+    LazyVerticalGrid(
         columns = gridCells,
-        modifier = modifier,
+        modifier = modifier.followedForumsCard(state, firstSectionIndex = 0, enabled = useCards),
+        state = state,
+        contentPadding = PaddingValues(horizontal = if (useCards) MainCardStyle.horizontalSpacing else 0.dp),
         userScrollEnabled = false
     ) {
+        item(key = FollowedForumsHeaderKey, DefaultGridSpan, { ForumType.Header }) {
+            FollowedForumsHeader(
+                actions = actions,
+            )
+        }
         items(24, key = { it }) {
             ForumItemPlaceholder(listSingle)
+        }
+        item(key = FollowedForumsFooterKey, DefaultGridSpan, { ForumType.Footer }) {
+            Spacer(Modifier.height(12.dp))
         }
     }
 }

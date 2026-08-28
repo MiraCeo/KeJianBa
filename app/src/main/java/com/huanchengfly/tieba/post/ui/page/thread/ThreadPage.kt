@@ -133,6 +133,7 @@ import com.huanchengfly.tieba.post.ui.page.setResult
 import com.huanchengfly.tieba.post.ui.page.threadstore.ThreadStoreUiEvent
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
+import com.huanchengfly.tieba.post.ui.widgets.compose.ForumAvatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlurScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.CardHorizontalSpacing
@@ -598,7 +599,7 @@ private fun ForumTitleChip(forum: SimpleForum, onForumClick: () -> Unit) {
                 .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Avatar(
+            ForumAvatar(
                 data = forum.third,
                 modifier = Modifier
                     .fillMaxHeight()

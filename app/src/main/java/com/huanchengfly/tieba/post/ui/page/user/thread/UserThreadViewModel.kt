@@ -2,6 +2,7 @@ package com.huanchengfly.tieba.post.ui.page.user.thread
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.huanchengfly.tieba.post.api.userPostHasMore
 import com.huanchengfly.tieba.post.arch.TbLiteExceptionHandler
 import com.huanchengfly.tieba.post.arch.UiState
 import com.huanchengfly.tieba.post.repository.ExploreRepository.Companion.distinctById
@@ -18,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 
 data class UserThreadUiState(
     val isRefreshing: Boolean = true,
@@ -39,44 +42,48 @@ class UserThreadViewModel @AssistedInject constructor(
 ) : ViewModel() {
 
     private val handler = TbLiteExceptionHandler(TAG) { _, e, _ ->
-        _uiState.update { it.copy(isRefreshing = false, error = e) }
+        _uiState.update { it.copy(isRefreshing = false, isLoadingMore = false, error = e) }
     }
 
     private val _uiState = MutableStateFlow(UserThreadUiState(isRefreshing = true))
     val uiState: StateFlow<UserThreadUiState> = _uiState.asStateFlow()
+    private var loadMoreJob: Job? = null
 
     init {
         refreshInternal(cached = true)
     }
 
     private fun refreshInternal(cached: Boolean) = viewModelScope.launch(handler) {
-        _uiState.update { UserThreadUiState(isRefreshing = true) }
+        loadMoreJob?.cancel()
+        _uiState.update { it.copy(isRefreshing = true, isLoadingMore = false, error = null) }
         val data = userProfileRepo.loadUserThread(uid, page = 1, cached)
+        val unique = data.distinctById()
+        ensureActive()
         _uiState.update {
-            UserThreadUiState(isRefreshing = false, data = data, currentPage = 1, hasMore = data.size >= 60)
+            UserThreadUiState(isRefreshing = false, data = unique, currentPage = 1, hasMore = userPostHasMore(data.size))
         }
     }
 
     fun onRefresh() {
-        if (!_uiState.value.isRefreshing) refreshInternal(cached = false)
+        if (_uiState.value.isRefreshing) return
+        _uiState.update { it.copy(isRefreshing = true) }
+        refreshInternal(cached = false)
     }
 
     fun onLoadMore() {
         val oldState = _uiState.value
-        if (!oldState.isLoadingMore) _uiState.set { copy(isLoadingMore = true) } else return
+        if (oldState.isLoadingMore || oldState.isRefreshing || !oldState.hasMore) return
+        _uiState.set { copy(isLoadingMore = true, error = null) }
 
-        viewModelScope.launch(handler) {
+        loadMoreJob = viewModelScope.launch(handler) {
             val page = oldState.currentPage + 1
             val data = userProfileRepo.loadUserThread(uid, page, cached = true)
             val newData = if (data.isNotEmpty()) (oldState.data + data).distinctById() else null
-            val hasMore = newData != null && newData.size > oldState.data.size
+            val hasMore = userPostHasMore(data.size, newData != null && newData.size > oldState.data.size)
+            ensureActive()
 
             _uiState.update {
-                if (hasMore) {
-                    it.copy(isLoadingMore = false, currentPage = page, data = newData, hasMore = true)
-                } else {
-                    it.copy(isLoadingMore = false, hasMore = false)
-                }
+                it.copy(isLoadingMore = false, currentPage = page, data = newData ?: it.data, hasMore = hasMore)
             }
         }
     }

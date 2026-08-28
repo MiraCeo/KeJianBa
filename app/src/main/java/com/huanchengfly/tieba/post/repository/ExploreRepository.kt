@@ -30,6 +30,7 @@ import com.huanchengfly.tieba.post.utils.AccountUtil
 import com.huanchengfly.tieba.post.utils.DateTimeUtils
 import com.huanchengfly.tieba.post.utils.StringUtil
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -55,6 +56,7 @@ class ExploreRepository @Inject constructor(
 ) {
 
     private val networkDataSource = ExploreNetworkDataSource
+    private val accountUid = settingsRepository.accountUid
 
     private val habitSettings = settingsRepository.habitSettings
 
@@ -92,21 +94,26 @@ class ExploreRepository @Inject constructor(
         return data.mapUiModel(habit.showBothName, blockRepo::isBlocked)
     }
 
-    suspend fun loadPersonalized(page: Int, cached: Boolean): List<ThreadItem> {
+    suspend fun loadPersonalized(page: Int, cached: Boolean, cacheScope: String? = null, expectedUid: Long? = null): List<ThreadItem> {
+        suspend fun checkAccount() {
+            if (expectedUid != null && accountUid.snapshot() != expectedUid) throw CancellationException("Account changed")
+        }
+        checkAccount()
         var data: PersonalizedResponseData? = null
         if (cached) {
-            data = localDataSource.loadPersonalized(page)
+            data = localDataSource.loadPersonalized(page, cacheScope)
         }
 
         if (data == null) { // no cache, fetch from network
             data = if (page == 1) {
                 // expired or force-refresh, purge all cached pages
-                localDataSource.purgePersonalized()
+                localDataSource.purgePersonalized(cacheScope)
                 networkDataSource.refreshPersonalizedThread()
             } else {
                 networkDataSource.loadMorePersonalizedThread(page)
             }
-            localDataSource.savePersonalized(data, page)
+            checkAccount()
+            localDataSource.savePersonalized(data, page, cacheScope)
         }
 
         return data.mapUiModel(
@@ -152,17 +159,20 @@ class ExploreRepository @Inject constructor(
     }
 
     suspend fun onLikeThread(thread: ThreadItem, from: ExplorePageItem, hotTab: HotTab? = null) {
+        val uid = accountUid.snapshot()
         threadRepo.requestLikeThread(thread)
+        if (accountUid.snapshot() != uid) throw CancellationException("Account changed")
         updateCachedThreadLike(threadId = thread.id, like = !thread.like, from, hotTab)
     }
 
     suspend fun updateCachedThreadLike(threadId: Long, like: Like, from: ExplorePageItem, hotTab: HotTab? = null) {
+        val uid = accountUid.snapshot()
         scope.async {
             // Update local cache, this is non-cancellable
             when (from) {
                 ExplorePageItem.Concern -> localDataSource.updateUserLike(uid = requireUid(), threadId, like)
 
-                ExplorePageItem.Personalized -> localDataSource.updatePersonalizedLike(threadId, like)
+                ExplorePageItem.Personalized -> localDataSource.updatePersonalizedLike(threadId, like, uid)
 
                 ExplorePageItem.Hot -> localDataSource.updateHotThreadLike(hotTab!!.tabCode, threadId, like)
             }
@@ -170,8 +180,9 @@ class ExploreRepository @Inject constructor(
     }
 
     suspend fun onDislikeThread(thread: ThreadItem, reasons: List<Dislike>) {
+        val uid = accountUid.snapshot()
         scope.launch {
-            localDataSource.dislikePersonalized(threadId = thread.id)
+            localDataSource.dislikePersonalized(threadId = thread.id, uid = uid)
         }
 
         val clickTimeMill = System.currentTimeMillis()

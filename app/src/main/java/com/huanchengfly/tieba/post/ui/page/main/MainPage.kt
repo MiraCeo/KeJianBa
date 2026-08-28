@@ -148,7 +148,8 @@ import kotlinx.coroutines.withContext
 @Stable
 val MainDestination.titleRes: Int
     @StringRes get() = when(this) {
-        MainDestination.Home -> R.string.title_main
+        MainDestination.Feed -> R.string.title_main
+        MainDestination.Home -> R.string.title_enter_forums
         MainDestination.Explore -> R.string.title_explore
         MainDestination.Notification -> R.string.title_notifications
         MainDestination.User -> R.string.title_user
@@ -157,6 +158,7 @@ val MainDestination.titleRes: Int
 @Stable
 val MainDestination.iconRes: Int
     @DrawableRes get() = when(this) {
+        MainDestination.Feed -> R.drawable.ic_animated_rounded_inventory_2 // Rendered by PlanetNavigationIcon.
         MainDestination.Home -> R.drawable.ic_animated_rounded_inventory_2
         MainDestination.Explore -> R.drawable.ic_animated_toy_fans
         MainDestination.Notification -> R.drawable.ic_animated_rounded_notifications
@@ -214,7 +216,7 @@ private fun NavController.currentMainDestinationAsState(destinations: List<MainD
 @Composable
 fun MainPage(
     navHostController: NavHostController,
-    startDestination: MainDestination = MainDestination.Home,
+    startDestination: MainDestination = MainDestination.Feed,
     vm: MainPageViewModel = hiltViewModel()
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -226,12 +228,7 @@ fun MainPage(
 
     val loggedIn = LocalAccount.current != null
     val destinations = remember(loggedIn, uiSettings.hideExplore) {
-        listOfNotNull(
-            MainDestination.Home,
-            MainDestination.Explore.takeUnless { uiSettings.hideExplore },
-            MainDestination.Notification.takeIf { loggedIn },
-            MainDestination.User,
-        )
+        mainDestinations(loggedIn, uiSettings.hideExplore)
     }
 
     val blurEffect = !uiSettings.reduceEffect && !MaterialTheme.colorScheme.isTranslucent
@@ -287,9 +284,8 @@ fun MainPage(
                 MainNavigationSuiteType.NavigationDrawer -> TbDrawerNavigationAction(onLoginClicked)
 
                 MainNavigationSuiteType.FloatingNavigationBarCompact -> {
-                    if (uiSettings.hideExplore) return@MainNavigationSuiteScaffold
-                    ExplorePrimaryAction(visible = MainDestination.Explore === currentDestination) {
-                        coroutineScope.emitGlobalEvent(GlobalEvent.ScrollToTop(MainDestination.Explore))
+                    ExplorePrimaryAction(visible = currentDestination === MainDestination.Feed || currentDestination === MainDestination.Explore) {
+                        currentDestination?.let { coroutineScope.emitGlobalEvent(GlobalEvent.ScrollToTop(it)) }
                     }
                 }
 
@@ -325,6 +321,7 @@ fun MainPage(
                 hazeState = hazeState,
                 parentAnimatedVisibilityScope = parentAnimatedVisibilityScope,
                 parentSharedTransitionScope = parentSharedTransitionScope,
+                startDestination = startDestination,
             )
         }
     }
@@ -359,7 +356,7 @@ private fun MainNavigationSuite(
             // NavigationSuite adds an 80dp minimum around this same component.
             // Instantiate it directly so our bar height and content placeholder agree.
             ShortNavigationBar(
-                modifier = modifier,
+                modifier = modifier.mainBottomBarDivider(),
                 containerColor = colors.navigationBarContainerColor,
                 contentColor = colors.navigationBarContentColor,
                 content = content,
@@ -498,7 +495,7 @@ private fun MainNavigationItems(
                     } else {
                         stringResource(destination.titleRes)
                     }
-                    if (isCompactMainBar) {
+                    if (isCompactMainBar || destination === MainDestination.Feed) {
                         MainNavigationIcon(
                             destination = destination,
                             selected = selected,
@@ -885,8 +882,8 @@ private fun MainNavigationSuiteType.toNavigationSuiteType(): NavigationSuiteType
 @Preview("MainNavigationItems", device = Devices.PIXEL_TABLET)
 @Composable
 private fun MainNavigationItemsPreview() = TiebaLiteTheme {
-    val destinations = listOf(MainDestination.Home, MainDestination.Explore, MainDestination.Notification, MainDestination.User)
-    val isSelected: (MainDestination) -> Boolean = { it == MainDestination.Home }
+    val destinations = mainDestinations(loggedIn = true, hideExplore = false)
+    val isSelected: (MainDestination) -> Boolean = { it == MainDestination.Feed }
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(
@@ -906,8 +903,8 @@ private fun MainNavigationItemsPreview() = TiebaLiteTheme {
 @Preview("MainBottomNavigationItems", device = Devices.PIXEL_9)
 @Composable
 private fun MainBottomNavigationItemsPreview() = TiebaLiteTheme {
-    val destinations = listOf(MainDestination.Home, MainDestination.Explore, MainDestination.Notification, MainDestination.User)
-    val isSelected: (MainDestination) -> Boolean = { it == MainDestination.Home }
+    val destinations = mainDestinations(loggedIn = true, hideExplore = false)
+    val isSelected: (MainDestination) -> Boolean = { it == MainDestination.Feed }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(

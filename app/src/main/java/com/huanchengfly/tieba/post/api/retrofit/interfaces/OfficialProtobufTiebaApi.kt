@@ -30,6 +30,11 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 
 interface OfficialProtobufTiebaApi {
+    @POST("/c/f/forum/getForumSquare?cmd=309653&format=protobuf")
+    fun forumSquareFlow(
+        @Body body: MyMultipartBody,
+    ): Flow<com.huanchengfly.tieba.post.api.models.protos.forumSquare.ForumSquareResponse>
+
     @POST("/c/f/excellent/personalized?cmd=309264")
     fun personalizedFlow(
         @Body body: MyMultipartBody,

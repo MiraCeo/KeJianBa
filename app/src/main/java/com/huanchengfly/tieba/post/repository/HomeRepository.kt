@@ -27,6 +27,7 @@ import com.huanchengfly.tieba.post.ui.models.LikedForum
 import com.huanchengfly.tieba.post.utils.AccountUtil
 import com.huanchengfly.tieba.post.utils.DateTimeUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
@@ -39,6 +40,8 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+
+data class FollowedForumSnapshot(val forums: List<LocalLikedForum>, val usedCachedSnapshot: Boolean)
 
 /**
  * Home Repository that manages LikedForum data.
@@ -62,6 +65,24 @@ class HomeRepository @Inject constructor(
 
     suspend fun requireAccount(): Account {
        return AccountUtil.getInstance().currentAccount.first() ?: throw TiebaNotLoggedInException()
+    }
+
+    // Full account-scoped list, including pinned forums; independent of UI paging.
+    fun observeFollowedForums(uid: Long): Flow<List<LocalLikedForum>> = localDataSource.observeAllSorted(uid)
+
+    suspend fun followedForumsForFeed(uid: Long, cached: Boolean): FollowedForumSnapshot {
+        if (requireAccount().uid != uid) throw CancellationException("Account changed")
+        val hasSnapshot = timestampDao.get(uid, TYPE_FORUM_LAST_UPDATED) != null
+        var usedCachedSnapshot = false
+        try {
+            refresh(cached)
+        } catch (e: Exception) {
+            if (e is CancellationException || !hasSnapshot) throw e
+            // Do not confuse an unavailable first sync with an empty followed list.
+            usedCachedSnapshot = true
+        }
+        if (requireAccount().uid != uid) throw CancellationException("Account changed")
+        return FollowedForumSnapshot(localDataSource.observeAllSorted(uid).first(), usedCachedSnapshot)
     }
 
     /**
@@ -100,6 +121,7 @@ class HomeRepository @Inject constructor(
         // force refresh or cache is expired
         if (!cached || isCacheExpired(uid)) {
             val forums = networkDataSource.getLikedForums().mapEntity(uid)
+            if (requireAccount().uid != uid) throw CancellationException("Account changed during forum sync")
             updateLikedForums(uid, forums)
             if (BuildConfig.DEBUG) {
                 val cost = System.currentTimeMillis() - start

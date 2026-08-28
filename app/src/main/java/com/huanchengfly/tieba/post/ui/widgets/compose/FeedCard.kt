@@ -296,10 +296,9 @@ fun ForumInfoChip(
         horizontalArrangement = Arrangement.spacedBy(ButtonDefaults.IconSpacing),
     ) {
         avatarUrl?.let {
-            Avatar(
+            ForumAvatar(
                 data = avatarUrl,
                 modifier = Modifier.fillMaxHeight().aspectRatio(1f),
-                shape = MaterialTheme.shapes.extraSmall
             )
         }
         Text(

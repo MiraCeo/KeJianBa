@@ -33,6 +33,7 @@ import com.huanchengfly.tieba.post.ui.page.LocalNavController
 import com.huanchengfly.tieba.post.ui.page.user.post.UserPostViewModel.Companion.UserPostVmFactory
 import com.huanchengfly.tieba.post.ui.widgets.compose.Card
 import com.huanchengfly.tieba.post.ui.widgets.compose.Container
+import com.huanchengfly.tieba.post.ui.widgets.compose.PullToRefreshBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.SwipeUpLazyLoadColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.UserHeader
 import com.huanchengfly.tieba.post.ui.widgets.compose.defaultBottomIndicator
@@ -43,7 +44,7 @@ fun UserPostPage(
     uid: Long,
     fluid: Boolean = false,
     lazyListState: LazyListState = rememberLazyListState(),
-    viewModel: UserPostViewModel = hiltViewModel<UserPostViewModel, UserPostVmFactory> { it.create(uid) },
+    viewModel: UserPostViewModel = hiltViewModel<UserPostViewModel, UserPostVmFactory>(key = "user-replies:$uid") { it.create(uid) },
 ) {
     val navigator = LocalNavController.current
 
@@ -66,7 +67,7 @@ fun UserPostPage(
 
     StateScreen(
         isEmpty = isEmpty,
-        isLoading = isRefreshing,
+        isLoading = isRefreshing && isEmpty,
         error = error,
         onReload = viewModel::onRefresh,
         screenPadding = PaddingNone,
@@ -87,28 +88,30 @@ fun UserPostPage(
             navigator.navigateDebounced(Thread(threadId = it.threadId))
         }
 
-        Container(fluid = fluid) {
-            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-            val data = uiState.data
-            val hasMore = uiState.hasMore
+        PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = viewModel::onRefresh, contentPadding = PaddingNone) {
+            Container(fluid = fluid) {
+                val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+                val data = uiState.data
+                val hasMore = uiState.hasMore
 
-            SwipeUpLazyLoadColumn(
-                modifier = Modifier.fillMaxSize(),
-                state = lazyListState,
-                isLoading = isLoadingMore,
-                onLazyLoad = viewModel::onLoadMore.takeIf { hasMore },
-                bottomIndicator = defaultBottomIndicator,
-            ) {
-                itemsIndexed(data, key = { _, it -> it.lazyListKey }) { i, post ->
-                    Column {
-                        UserPostItem(
-                            post = post,
-                            onPostContentClicked = onPostContentClicked,
-                            onOriginThreadClicked = onOriginThreadClicked
-                        )
+                SwipeUpLazyLoadColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = lazyListState,
+                    isLoading = isLoadingMore,
+                    onLazyLoad = viewModel::onLoadMore.takeIf { hasMore },
+                    bottomIndicator = defaultBottomIndicator,
+                ) {
+                    itemsIndexed(data, key = { _, it -> it.lazyListKey }) { i, post ->
+                        Column {
+                            UserPostItem(
+                                post = post,
+                                onPostContentClicked = onPostContentClicked,
+                                onOriginThreadClicked = onOriginThreadClicked
+                            )
 
-                        if (i < data.lastIndex) {
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            if (i < data.lastIndex) {
+                                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            }
                         }
                     }
                 }

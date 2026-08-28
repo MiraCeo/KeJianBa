@@ -39,6 +39,7 @@ import com.huanchengfly.tieba.post.ui.page.thread.ThreadLikeUiEvent
 import com.huanchengfly.tieba.post.ui.page.user.thread.UserThreadViewModel.Companion.UserThreadVmFactory
 import com.huanchengfly.tieba.post.ui.widgets.compose.Card
 import com.huanchengfly.tieba.post.ui.widgets.compose.Container
+import com.huanchengfly.tieba.post.ui.widgets.compose.PullToRefreshBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.SwipeUpLazyLoadColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadContentType
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadMedia
@@ -52,7 +53,7 @@ fun UserThreadPage(
     uid: Long,
     fluid: Boolean = false,
     lazyListState: LazyListState = rememberLazyListState(),
-    viewModel: UserThreadViewModel = hiltViewModel<UserThreadViewModel, UserThreadVmFactory> { it.create(uid) },
+    viewModel: UserThreadViewModel = hiltViewModel<UserThreadViewModel, UserThreadVmFactory>(key = "user-threads:$uid") { it.create(uid) },
 ) {
     val context = LocalContext.current
     val navigator = LocalNavController.current
@@ -80,7 +81,7 @@ fun UserThreadPage(
 
     StateScreen(
         isEmpty = isEmpty,
-        isLoading = isRefreshing,
+        isLoading = isRefreshing && isEmpty,
         error = error,
         onReload = viewModel::onRefresh,
         screenPadding = PaddingNone,
@@ -89,28 +90,30 @@ fun UserThreadPage(
             createThreadClickListeners(onNavigate = navigator::navigate)
         }
 
-        Container(fluid = fluid) {
-            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-            val data = uiState.data
-            val hasMore = uiState.hasMore
+        PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = viewModel::onRefresh, contentPadding = PaddingNone) {
+            Container(fluid = fluid) {
+                val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+                val data = uiState.data
+                val hasMore = uiState.hasMore
 
-            SwipeUpLazyLoadColumn(
-                modifier = Modifier.fillMaxSize(),
-                state = lazyListState,
-                isLoading = isLoadingMore,
-                onLazyLoad = viewModel::onLoadMore.takeIf { hasMore },
-                bottomIndicator = defaultBottomIndicator,
-            ) {
-                itemsIndexed(data, key = { _, it -> it.id }, ThreadContentType) { i, thread ->
-                    Column {
-                        UserThread(
-                            thread = thread,
-                            onClick = threadClickListeners.onClicked,
-                            onClickForum = threadClickListeners.onForumClicked,
-                        )
+                SwipeUpLazyLoadColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = lazyListState,
+                    isLoading = isLoadingMore,
+                    onLazyLoad = viewModel::onLoadMore.takeIf { hasMore },
+                    bottomIndicator = defaultBottomIndicator,
+                ) {
+                    itemsIndexed(data, key = { _, it -> it.id }, ThreadContentType) { i, thread ->
+                        Column {
+                            UserThread(
+                                thread = thread,
+                                onClick = threadClickListeners.onClicked,
+                                onClickForum = threadClickListeners.onForumClicked,
+                            )
 
-                        if (i < data.lastIndex) {
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            if (i < data.lastIndex) {
+                                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            }
                         }
                     }
                 }

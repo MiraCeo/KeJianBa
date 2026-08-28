@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package tieba.forumSquare;
+option java_package = "com.huanchengfly.tieba.post.api.models.protos.forumSquare";
+
+import "CommonRequest.proto";
+import "Error.proto";
+import "Page.proto";
+import "RecommendForumInfo.proto";
+
+message ForumSquareRequestData {
+  CommonRequest common = 1;
+  string category = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  // Observed as 0 in all captures; its meaning is not established.
+  int32 unknown_flag = 5;
+}
+
+message ForumSquareRequest {
+  ForumSquareRequestData data = 1;
+}
+
+message ForumSquareResponseData {
+  repeated string categories = 1;
+  repeated RecommendForumInfo forums = 2;
+  Page page = 3;
+  string category = 4;
+  // Preserved for compatibility, intentionally not rendered in the current UI.
+  repeated string subcategories = 5;
+}
+
+message ForumSquareResponse {
+  Error error = 1;
+  ForumSquareResponseData data = 2;
+}

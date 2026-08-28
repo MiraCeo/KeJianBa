@@ -110,7 +110,8 @@ import com.huanchengfly.tieba.post.ui.page.photoview.PhotoViewActivity
 import com.huanchengfly.tieba.post.ui.page.thread.ThreadLikeUiEvent
 import com.huanchengfly.tieba.post.ui.utils.rememberScrollOrientationConnection
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
-import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
+import com.huanchengfly.tieba.post.ui.widgets.compose.ForumAvatar
+import com.huanchengfly.tieba.post.ui.widgets.compose.ForumAvatarShape
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlurScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.Chip
@@ -158,17 +159,17 @@ private fun Context.buildForumTabs(navTabInfo: List<FrsTabInfo>?): List<FrsTabIn
 }
 
 @Composable
-private fun ForumAvatar(
+private fun ForumToolbarAvatar(
     modifier: Modifier = Modifier,
     avatar: String?,
     forum: String,
     transitionKey: String?
 ) {
     if (avatar.isNullOrEmpty()) {
-        Box(modifier = modifier.placeholder(shape = CircleShape))
+        Box(modifier = modifier.placeholder(shape = ForumAvatarShape))
     } else {
         val context = LocalContext.current
-        Avatar(
+        ForumAvatar(
             data = avatar,
             modifier = modifier
                 .clickable {
@@ -318,7 +319,7 @@ fun ForumPage(
 
             CollapsingAvatarTopAppBar(
                 avatar = {
-                    ForumAvatar(
+                    ForumToolbarAvatar(
                         modifier = Modifier.matchParentSize(),
                         avatar = forumData?.avatar ?: avatarUrl,
                         forum = forumName,
