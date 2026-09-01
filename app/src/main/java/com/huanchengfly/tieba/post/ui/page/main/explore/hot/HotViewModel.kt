@@ -1,6 +1,7 @@
 package com.huanchengfly.tieba.post.ui.page.main.explore.hot
 
 import android.util.SparseArray
+import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.core.util.forEach
@@ -8,18 +9,26 @@ import com.huanchengfly.tieba.post.arch.BaseStateViewModel
 import com.huanchengfly.tieba.post.arch.TbLiteExceptionHandler
 import com.huanchengfly.tieba.post.arch.UiState
 import com.huanchengfly.tieba.post.arch.emitGlobalEventSuspend
+import com.huanchengfly.tieba.post.api.retrofit.exception.TiebaNotLoggedInException
 import com.huanchengfly.tieba.post.repository.ExploreRepository
+import com.huanchengfly.tieba.post.repository.HotTopicRepository
 import com.huanchengfly.tieba.post.repository.ExploreRepository.Companion.HOT_THREAD_TAB_ALL
 import com.huanchengfly.tieba.post.ui.models.Like
 import com.huanchengfly.tieba.post.ui.models.ThreadItem
 import com.huanchengfly.tieba.post.ui.models.explore.HotTab
-import com.huanchengfly.tieba.post.ui.models.explore.RecommendTopic
+import com.huanchengfly.tieba.post.ui.models.explore.HotRankTopic
+import com.huanchengfly.tieba.post.ui.models.explore.MaterialThreadRankCard
+import com.huanchengfly.tieba.post.ui.models.explore.MaterialThreadRankItem
 import com.huanchengfly.tieba.post.ui.page.main.explore.ExplorePageItem
+import com.huanchengfly.tieba.post.ui.page.thread.ThreadLikeUiEvent
 import com.huanchengfly.tieba.post.ui.page.main.explore.concern.ConcernViewModel.Companion.updateLikeStatus
 import com.huanchengfly.tieba.post.ui.page.main.explore.concern.ConcernViewModel.Companion.updateLikeStatusUiStateCommon
 import com.huanchengfly.tieba.post.utils.extension.set
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -34,7 +43,8 @@ private const val TAG = "HotViewModel"
 data class HotUiState(
     val isRefreshing: Boolean = false,
     val selectedTab: HotTab,
-    val topics: List<RecommendTopic> = emptyList(),
+    val topics: List<HotRankTopic> = emptyList(),
+    val materialThreadRanks: List<MaterialThreadRankCard> = emptyList(),
     val tabs: List<HotTab> = emptyList(),
     val threads: List<ThreadItem>? = null, // Loading
     val error: Throwable? = null,
@@ -46,7 +56,8 @@ data class HotUiState(
 @Stable
 @HiltViewModel
 class HotViewModel @Inject constructor(
-    private val exploreRepo: ExploreRepository
+    private val exploreRepo: ExploreRepository,
+    private val hotTopicRepo: HotTopicRepository,
 ) : BaseStateViewModel<HotUiState>() {
 
     private val defaultTab = HotTab(name = "", tabCode = HOT_THREAD_TAB_ALL, isLoading = false)
@@ -59,7 +70,7 @@ class HotViewModel @Inject constructor(
     }
 
     init {
-        refreshInternal(cached = true)
+        refreshInternal(cached = false)
     }
 
     override fun createInitialState(): HotUiState {
@@ -86,13 +97,32 @@ class HotViewModel @Inject constructor(
         if (!cached) {
             memCache.clear() // force-refresh, clear in-memory cache
         }
-        val data = exploreRepo.loadHotTopic(cached)
+        val (data, materialThreadRanks) = coroutineScope {
+            val hotThreadsRequest = async { exploreRepo.loadHotTopic(cached) }
+            val materialRanksRequest = async {
+                try {
+                    hotTopicRepo.loadMaterialThreadRanks()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to load material thread ranks", e)
+                    null
+                }
+            }
+            hotThreadsRequest.await() to materialRanksRequest.await()
+        }
         updateCache(defaultTab, data.threads)
         // defaultTab + tabs
         val tabs = listOf(defaultTab, *data.tabs.toTypedArray())
         defaultTab.isLoading = false
         _uiState.update {
-            it.copy(isRefreshing = false, topics = data.topics, tabs = tabs, threads = data.threads)
+            it.copy(
+                isRefreshing = false,
+                topics = data.topics,
+                materialThreadRanks = materialThreadRanks ?: it.materialThreadRanks,
+                tabs = tabs,
+                threads = data.threads,
+            )
         }
     }
 
@@ -106,7 +136,7 @@ class HotViewModel @Inject constructor(
         if (!tab.isLoading) tab.isLoading = true else return
 
         launchInVM {
-            var topics: List<RecommendTopic>? = null
+            var topics: List<HotRankTopic>? = null
             var threads: List<ThreadItem>? = getCached(tab) // get from memory cache
             try {
                 if (threads == null) {
@@ -154,6 +184,65 @@ class HotViewModel @Inject constructor(
         }
     }
 
+    fun onMaterialThreadLikeClicked(thread: MaterialThreadRankItem) = launchInVM {
+        if (thread.likeLoading) {
+            emitGlobalEventSuspend(ThreadLikeUiEvent.Connecting)
+            return@launchInVM
+        }
+
+        val liked = !thread.liked
+        val agreeNum = (thread.agreeNum + if (liked) 1L else -1L).coerceAtLeast(0L)
+        updateMaterialThreadLike(thread.threadId, liked, agreeNum, loading = true)
+
+        try {
+            hotTopicRepo.setMaterialThreadLiked(
+                threadId = thread.threadId,
+                firstPostId = thread.firstPostId,
+                liked = liked,
+            )
+            updateMaterialThreadLike(thread.threadId, liked, agreeNum, loading = false)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            updateMaterialThreadLike(
+                threadId = thread.threadId,
+                liked = thread.liked,
+                agreeNum = thread.agreeNum,
+                loading = false,
+            )
+            emitGlobalEventSuspend(
+                if (e is TiebaNotLoggedInException) {
+                    ThreadLikeUiEvent.NotLoggedIn
+                } else {
+                    ThreadLikeUiEvent.Failed(e)
+                }
+            )
+        }
+    }
+
+    private fun updateMaterialThreadLike(
+        threadId: Long,
+        liked: Boolean,
+        agreeNum: Long,
+        loading: Boolean,
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                materialThreadRanks = state.materialThreadRanks.map { card ->
+                    card.copy(
+                        threads = card.threads.map { item ->
+                            if (item.threadId == threadId) {
+                                item.copy(liked = liked, agreeNum = agreeNum, likeLoading = loading)
+                            } else {
+                                item
+                            }
+                        }
+                    )
+                }
+            )
+        }
+    }
+
     /**
      * Called when navigating back from thread page.
      *
@@ -164,6 +253,20 @@ class HotViewModel @Inject constructor(
         launchInVM {
             val stateSnapshot = currentState
             val selectedTab = stateSnapshot.selectedTab
+            val materialThread = stateSnapshot.materialThreadRanks
+                .asSequence()
+                .flatMap { it.threads.asSequence() }
+                .firstOrNull { it.threadId == threadId }
+            if (materialThread != null &&
+                (materialThread.liked != like.liked || materialThread.agreeNum != like.count)
+            ) {
+                updateMaterialThreadLike(
+                    threadId = threadId,
+                    liked = like.liked,
+                    agreeNum = like.count,
+                    loading = false,
+                )
+            }
             val newThreads = stateSnapshot.threads?.updateLikeStatus(threadId, like)
             // Like data changed, update in-memory and local cache
             if (newThreads != null) {

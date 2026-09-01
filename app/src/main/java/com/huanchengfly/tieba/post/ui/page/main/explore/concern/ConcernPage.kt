@@ -19,8 +19,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,13 +47,14 @@ import com.huanchengfly.tieba.post.ui.page.Destination
 import com.huanchengfly.tieba.post.ui.page.main.explore.ConsumeThreadPageResult
 import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle
 import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle.feedCard
-import com.huanchengfly.tieba.post.ui.page.main.explore.LaunchedFabStateEffect
 import com.huanchengfly.tieba.post.ui.page.main.explore.createThreadClickListeners
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.FeedCard
+import com.huanchengfly.tieba.post.ui.widgets.compose.LaunchedBackToTopFabStateEffect
 import com.huanchengfly.tieba.post.ui.widgets.compose.PullToRefreshBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.SwipeUpLazyLoadColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadContentType
+import com.huanchengfly.tieba.post.ui.widgets.compose.containHorizontalScroll
 import com.huanchengfly.tieba.post.ui.widgets.compose.defaultBottomIndicator
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
 
@@ -78,7 +83,12 @@ fun ConcernPage(
 
     viewModel.uiEvent.collectCommonUiEventWithLifecycle()
 
-    LaunchedFabStateEffect(listState, onHideFab, isRefreshing, isError = error != null)
+    LaunchedBackToTopFabStateEffect(
+        listState = listState,
+        onVisibilityChanged = { visible -> onHideFab(!visible) },
+        isRefreshing = isRefreshing,
+        isError = error != null,
+    )
 
     val threadClickListeners = remember(navigator) {
         createThreadClickListeners(onNavigate = navigator::navigateDebounced)
@@ -103,6 +113,25 @@ fun ConcernPage(
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
             val isLoadingMore = uiState.isLoadingMore
             val data = uiState.data
+            val hasFollowedUsers = uiState.followedUsers.isNotEmpty()
+            var hadFollowedUsers by rememberSaveable { mutableStateOf(false) }
+
+            LaunchedEffect(hasFollowedUsers) {
+                if (hasFollowedUsers && !hadFollowedUsers) {
+                    // A late header insertion keeps the first thread anchored by its key.
+                    // Restore the top only if the reader is still at the start of the feed.
+                    val firstVisibleItem = listState.layoutInfo.visibleItemsInfo.firstOrNull {
+                        it.index == listState.firstVisibleItemIndex
+                    }
+                    val isAtFeedStart = listState.firstVisibleItemScrollOffset == 0 &&
+                            (listState.firstVisibleItemIndex == 0 ||
+                                    firstVisibleItem?.key == data.firstOrNull()?.id)
+                    if (isAtFeedStart && !listState.isScrollInProgress) {
+                        listState.scrollToItem(0)
+                    }
+                }
+                hadFollowedUsers = hasFollowedUsers
+            }
 
             SwipeUpLazyLoadColumn(
                 modifier = modifier.fillMaxSize(),
@@ -112,7 +141,7 @@ fun ConcernPage(
                 onLazyLoad = viewModel::onLoadMore.takeIf { uiState.hasMore },
                 bottomIndicator = defaultBottomIndicator,
             ) {
-                if (uiState.followedUsers.isNotEmpty()) {
+                if (hasFollowedUsers) {
                     item(key = "followed-users") {
                         Column(
                             modifier = Modifier
@@ -139,6 +168,7 @@ fun ConcernPage(
                                 )
                             }
                             LazyRow(
+                                modifier = Modifier.containHorizontalScroll(),
                                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {

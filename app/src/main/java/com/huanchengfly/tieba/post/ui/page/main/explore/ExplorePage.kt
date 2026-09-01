@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.selection.selectable
@@ -35,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -81,7 +81,6 @@ import com.huanchengfly.tieba.post.ui.page.thread.ThreadResultKey
 import com.huanchengfly.tieba.post.ui.page.threadstore.ThreadStoreContent
 import com.huanchengfly.tieba.post.ui.page.user.thread.UserThreadPage
 import com.huanchengfly.tieba.post.ui.page.user.post.UserPostPage
-import com.huanchengfly.tieba.post.ui.utils.rememberScrollOrientationConnection
 import com.huanchengfly.tieba.post.ui.widgets.compose.AccountNavIconIfCompact
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
 import com.huanchengfly.tieba.post.ui.widgets.compose.Container
@@ -207,10 +206,13 @@ fun AnimatedVisibilityScope.ExplorePage(destination: MainDestination) {
         else -> listStates.getOrNull(pagerState.currentPage).takeIf { pages[pagerState.currentPage].feed != null }
     }
 
-    val scrollOrientationConnection = rememberScrollOrientationConnection()
-
     // FAB visibility of each page
-    var fabHideStates by remember(pages) { mutableStateOf(BooleanBitSet()) }
+    var fabHideStates by remember(pages) {
+        mutableStateOf(BooleanBitSet((1 shl pages.size) - 1))
+    }
+    LaunchedEffect(pagerState.settledPage) {
+        fabHideStates = fabHideStates.set(pagerState.settledPage, true)
+    }
 
     // Like event from explorePages
     onGlobalEvent<ThreadLikeUiEvent>(coroutineScope) {
@@ -272,12 +274,15 @@ fun AnimatedVisibilityScope.ExplorePage(destination: MainDestination) {
             val visible by remember {
                 derivedStateOf {
                     pages[pagerState.currentPage].feed != null &&
-                            !transition.isRunning && scrollOrientationConnection.isScrollingForward &&
-                            !pagerState.isScrolling && !listStates[pagerState.currentPage].isScrollInProgress &&
+                            !transition.isRunning &&
+                            !pagerState.isScrolling &&
                             !fabHideStates[pagerState.currentPage]
                 }
             }
-            DefaultBackToTopFAB(visible = visible) {
+            DefaultBackToTopFAB(
+                modifier = Modifier.offset(y = 4.dp),
+                visible = visible,
+            ) {
                 coroutineScope.emitGlobalEvent(GlobalEvent.ScrollToTop(destination))
             }
         },
@@ -291,8 +296,7 @@ fun AnimatedVisibilityScope.ExplorePage(destination: MainDestination) {
                 key = { pages[it].title },
                 modifier = Modifier
                     .fillMaxSize()
-                    .feedBackground()
-                    .nestedScroll(scrollOrientationConnection),
+                    .feedBackground(),
                 verticalAlignment = Alignment.Top,
                 flingBehavior = PagerDefaults.flingBehavior(pagerState, snapPositionalThreshold = 0.75f)
             ) { index ->
@@ -406,20 +410,6 @@ fun Modifier.topAppBarBlurEffect(
             this.blurEnabled = !mainAnimatedContentScope.transition.isRunning && blurEnabled()
         }
     }
-
-@Composable
-fun LaunchedFabStateEffect(
-    listState: LazyListState,
-    onHideFab: (Boolean) -> Unit,
-    isRefreshing: Boolean,
-    isError: Boolean
-) {
-    val noScrollBackward by remember { derivedStateOf { !listState.canScrollBackward } }
-
-    LaunchedEffect(noScrollBackward, onHideFab, isRefreshing, isError) {
-        onHideFab(noScrollBackward || isRefreshing || isError)
-    }
-}
 
 @Composable
 inline fun <reified Route : Any> ConsumeThreadPageResult(

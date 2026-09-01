@@ -1,5 +1,6 @@
 package com.huanchengfly.tieba.post.ui.widgets.compose
 
+import androidx.compose.foundation.OverscrollEffect
 import androidx.compose.foundation.gestures.FlingBehavior
 import androidx.compose.foundation.gestures.ScrollableDefaults
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.Saver
@@ -20,12 +22,31 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.packInts
 import androidx.compose.ui.util.unpackInt1
 import androidx.compose.ui.util.unpackInt2
 import com.huanchengfly.tieba.post.arch.GlobalEvent
 import com.huanchengfly.tieba.post.arch.onGlobalEvent
+
+/** Keeps horizontal drags and flings inside a nested list, including at either edge. */
+fun Modifier.containHorizontalScroll(): Modifier = nestedScroll(HorizontalScrollBoundaryConnection)
+
+private object HorizontalScrollBoundaryConnection : NestedScrollConnection {
+    override fun onPostScroll(
+        consumed: Offset,
+        available: Offset,
+        source: NestedScrollSource,
+    ): Offset = Offset(available.x, 0f)
+
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+        Velocity(available.x, 0f)
+}
 
 @Composable
 fun MyLazyColumn(
@@ -38,6 +59,7 @@ fun MyLazyColumn(
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     flingBehavior: FlingBehavior = ScrollableDefaults.flingBehavior(),
     userScrollEnabled: Boolean = true,
+    overscrollEffect: OverscrollEffect? = rememberOverscrollEffect(),
     content: LazyListScope.() -> Unit,
 ) {
     onGlobalEvent<GlobalEvent.ScrollToTop> {
@@ -53,6 +75,7 @@ fun MyLazyColumn(
         horizontalAlignment = horizontalAlignment,
         flingBehavior = flingBehavior,
         userScrollEnabled = userScrollEnabled,
+        overscrollEffect = overscrollEffect,
         content = content
     )
 }

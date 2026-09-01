@@ -27,6 +27,9 @@ sealed interface Destination {
     data object HotTopicList: Destination
 
     @Serializable
+    data class MaterialThreadRankList(val initialTabCode: String): Destination
+
+    @Serializable
     data class HotTopicDetail(val topicId: Long, val topicName: String): Destination
 
     @Serializable

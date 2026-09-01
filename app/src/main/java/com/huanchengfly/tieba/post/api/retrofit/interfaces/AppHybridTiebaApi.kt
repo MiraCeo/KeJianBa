@@ -7,6 +7,8 @@ import com.huanchengfly.tieba.post.api.models.SearchForumBean
 import com.huanchengfly.tieba.post.api.models.SearchThreadBean
 import com.huanchengfly.tieba.post.api.models.SearchUserBean
 import com.huanchengfly.tieba.post.api.models.TopicDetailBean
+import com.huanchengfly.tieba.post.api.models.web.MaterialHomeResponse
+import com.huanchengfly.tieba.post.api.models.web.MaterialThreadRankResponse
 import com.huanchengfly.tieba.post.api.urlEncode
 import kotlinx.coroutines.flow.Flow
 import retrofit2.http.GET
@@ -17,6 +19,30 @@ import retrofit2.http.QueryMap
 import com.huanchengfly.tieba.post.api.Header as TiebaHeaders
 
 interface AppHybridTiebaApi {
+    @Headers(
+        "${TiebaHeaders.ADD_WEB_COOKIE}: ${TiebaHeaders.ADD_WEB_COOKIE_FALSE}",
+        "${TiebaHeaders.NO_COMMON_PARAMS}: ${Param.BDUSS},${Param.STOKEN}",
+    )
+    @GET("/c/f/material/home")
+    fun materialHomeFlow(
+        @QueryMap params: Map<String, String>,
+        @Header("Cookie") cookie: String,
+        @Header("User-Agent") userAgent: String,
+    ): Flow<MaterialHomeResponse>
+
+    @Headers(
+        "${TiebaHeaders.ADD_WEB_COOKIE}: ${TiebaHeaders.ADD_WEB_COOKIE_FALSE}",
+        "${TiebaHeaders.NO_COMMON_PARAMS}: ${Param.BDUSS},${Param.STOKEN}",
+    )
+    @GET("/c/f/material/threadbang")
+    fun materialThreadRankFlow(
+        @QueryMap params: Map<String, String>,
+        @Query("tab_code") tabCode: String,
+        @Query("is_need_tab") includeTabs: Int,
+        @Header("Cookie") cookie: String,
+        @Header("User-Agent") userAgent: String,
+    ): Flow<MaterialThreadRankResponse>
+
     @Headers(
         "${TiebaHeaders.ADD_WEB_COOKIE}: ${TiebaHeaders.ADD_WEB_COOKIE_FALSE}",
         "${TiebaHeaders.NO_COMMON_PARAMS}: ${Param.BDUSS},${Param.STOKEN}",

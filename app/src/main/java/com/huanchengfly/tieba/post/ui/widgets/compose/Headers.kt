@@ -138,6 +138,7 @@ fun SharedTransitionUserHeader(
     extraKey: Any? = null,
     desc: String? = null,
     onClick: (() -> Unit)?,
+    descContent: (@Composable () -> Unit)? = null,
     content: (@Composable RowScope.() -> Unit)? = null,
 ) {
     UserHeader(
@@ -160,7 +161,7 @@ fun SharedTransitionUserHeader(
                     }
             )
         },
-        desc = desc?.let { { Text(text = desc) } },
+        desc = descContent ?: desc?.let { { Text(text = desc) } },
         content = content
     )
 }

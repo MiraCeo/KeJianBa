@@ -52,12 +52,12 @@ import com.huanchengfly.tieba.post.ui.page.Destination
 import com.huanchengfly.tieba.post.ui.page.main.explore.ConsumeThreadPageResult
 import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle
 import com.huanchengfly.tieba.post.ui.page.main.explore.ExploreFeedStyle.feedCard
-import com.huanchengfly.tieba.post.ui.page.main.explore.LaunchedFabStateEffect
 import com.huanchengfly.tieba.post.ui.page.main.explore.createThreadClickListeners
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlockTip
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlockableContent
 import com.huanchengfly.tieba.post.ui.widgets.compose.CardHorizontalSpacing
 import com.huanchengfly.tieba.post.ui.widgets.compose.FeedCard
+import com.huanchengfly.tieba.post.ui.widgets.compose.LaunchedBackToTopFabStateEffect
 import com.huanchengfly.tieba.post.ui.widgets.compose.PullToRefreshBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.StrongBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.TipScreen
@@ -143,7 +143,12 @@ fun PersonalizedPage(
         prop1 = PersonalizedUiState::isLoadingMore, initial = false,
     )
 
-    LaunchedFabStateEffect(listState, onHideFab, isRefreshing, isError)
+    LaunchedBackToTopFabStateEffect(
+        listState = listState,
+        onVisibilityChanged = { visible -> onHideFab(!visible) },
+        isRefreshing = isRefreshing,
+        isError = isError,
+    )
 
     StateScreen(
         isEmpty = isEmpty,

@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onVisibilityChanged
@@ -517,6 +518,45 @@ fun OriginThreadCard(
 }
 
 @Composable
+private fun FeedForumSource(
+    forumName: String,
+    avatarUrl: String?,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.extraSmall)
+            .clickable(onClick = onClick)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        ForumAvatar(data = avatarUrl, size = 16.dp)
+        Text(
+            text = stringResource(R.string.title_forum_name, forumName),
+            color = if (TiebaLiteTheme.extendedColorScheme.darkTheme)
+                MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF616161),
+            style = MaterialTheme.typography.bodySmall,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private val FeedActionDividerColor = Color(0xFFDDDDDD)
+
+private fun Modifier.feedActionDivider(): Modifier = drawWithCache {
+    onDrawWithContent {
+        drawContent()
+        if (size.width > 0f && size.height >= 1f) {
+            drawRect(FeedActionDividerColor, Offset.Zero, Size(size.width, 1f))
+        }
+    }
+}
+
+@Composable
 fun FeedCard(
     thread: ThreadItem,
     onClick: (ThreadItem) -> Unit,
@@ -531,14 +571,40 @@ fun FeedCard(
 ) {
     val context = LocalContext.current
     val (forumId, forumName, forumAvatar) = thread.simpleForum
+    val time = remember(context, thread.lastTimeMill) {
+        DateTimeUtils.getRelativeTimeString(context, thread.lastTimeMill)
+    }
 
     Card(
         header = {
             SharedTransitionUserHeader(
                 user = thread.author,
                 extraKey = thread.id,
-                desc = remember { DateTimeUtils.getRelativeTimeString(context, thread.lastTimeMill) },
+                desc = time,
                 onClick = { onClickUser(thread) },
+                descContent = if (onClickForum != null) {
+                    {
+                        val darkTheme = TiebaLiteTheme.extendedColorScheme.darkTheme
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(15.dp),
+                        ) {
+                            Text(
+                                text = time,
+                                color = if (darkTheme) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else Color(0xFF757575),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            FeedForumSource(
+                                modifier = Modifier.weight(1f, fill = false),
+                                forumName = forumName,
+                                avatarUrl = forumAvatar,
+                                onClick = { onClickForum(thread) },
+                            )
+                        }
+                    }
+                } else null,
                 content = dislikeAction
             )
         },
@@ -573,22 +639,16 @@ fun FeedCard(
                         .padding(16.dp)
                 )
             }
-
-            if (onClickForum != null) {
-                ForumInfoChip(
-                    forumName = forumName,
-                    avatarUrl = forumAvatar,
-                    onClick = { onClickForum(thread) }
-                )
-            }
         },
         action = {
+            Spacer(modifier = Modifier.height(12.dp))
             ThreadActionButtonRow(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().feedActionDivider(),
                 shares = thread.shareNum,
                 replies = thread.replyNum,
                 likes = thread.like.count,
                 liked = thread.like.liked,
+                verticalPadding = 10.dp,
                 onShareClicked = {
                     TiebaUtil.shareThread(context, thread.title, thread.id)
                 },

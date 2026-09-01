@@ -113,6 +113,7 @@ import com.huanchengfly.tieba.post.arch.onGlobalEvent
 import com.huanchengfly.tieba.post.theme.TiebaLiteTheme
 import com.huanchengfly.tieba.post.theme.isTranslucent
 import com.huanchengfly.tieba.post.ui.common.LocalAnimatedVisibilityScope
+import com.huanchengfly.tieba.post.ui.widgets.compose.animateScrollToTop
 import com.huanchengfly.tieba.post.ui.common.LocalSharedTransitionScope
 import com.huanchengfly.tieba.post.ui.common.animateEnterExit
 import com.huanchengfly.tieba.post.ui.common.defaultVerticalEnterTransition
@@ -712,9 +713,7 @@ inline fun <reified T: MainDestination> OnMainNavigationScrollTopEvent(
         if (listState?.canScrollBackward == true || gridState?.canScrollBackward == true) {
             context.vibrateOneShot(milliseconds = 50)
             coroutineScope.launch {
-                listState?.run {
-                    if (firstVisibleItemIndex > 5) scrollToItem(0) else animateScrollToItem(0)
-                }
+                listState?.animateScrollToTop()
                 gridState?.animateScrollToItem(0)
             }
         }

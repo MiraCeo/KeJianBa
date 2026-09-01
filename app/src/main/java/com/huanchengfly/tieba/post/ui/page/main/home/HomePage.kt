@@ -128,6 +128,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.TipScreen
 import com.huanchengfly.tieba.post.ui.widgets.compose.CenterAlignedTopAppBar
 import com.huanchengfly.tieba.post.ui.page.main.mainTopBarDividers
 import com.huanchengfly.tieba.post.ui.widgets.compose.color
+import com.huanchengfly.tieba.post.ui.widgets.compose.containHorizontalScroll
 import com.huanchengfly.tieba.post.ui.widgets.compose.placeholder
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
@@ -378,6 +379,7 @@ private fun HistoryRow(modifier: Modifier = Modifier, history: List<History>, on
 
         AnimatedVisibility(visible = expandHistoryForum) {
             LazyRow(
+                modifier = Modifier.containHorizontalScroll(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {

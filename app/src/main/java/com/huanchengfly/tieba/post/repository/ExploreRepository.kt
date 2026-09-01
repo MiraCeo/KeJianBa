@@ -23,7 +23,7 @@ import com.huanchengfly.tieba.post.ui.models.ThreadItem
 import com.huanchengfly.tieba.post.ui.models.explore.Dislike
 import com.huanchengfly.tieba.post.ui.models.explore.HotTab
 import com.huanchengfly.tieba.post.ui.models.explore.HotTopicData
-import com.huanchengfly.tieba.post.ui.models.explore.RecommendTopic
+import com.huanchengfly.tieba.post.ui.models.explore.HotRankTopic
 import com.huanchengfly.tieba.post.ui.page.main.explore.ExplorePageItem
 import com.huanchengfly.tieba.post.ui.widgets.compose.buildThreadContent
 import com.huanchengfly.tieba.post.utils.AccountUtil
@@ -278,7 +278,14 @@ class ExploreRepository @Inject constructor(
         ): HotTopicData {
             return withContext(Dispatchers.Default) {
                 HotTopicData(
-                    topics = topicList.map { RecommendTopic(it.topicId, it.topicName, it.tag) },
+                    topics = topicList.map {
+                        HotRankTopic(
+                            topicId = it.topicId,
+                            topicName = it.topicName,
+                            tag = it.tag,
+                            discussNum = it.discussNum,
+                        )
+                    },
                     tabs = hotThreadTabInfo.map { HotTab(name = it.tabName, tabCode = it.tabCode) },
                     threads = threadInfo.map {
                         it.mapUiModel(showBothName, isBlocked, threadDislikeMap = null)

@@ -111,6 +111,10 @@ class PbPageRepository @Inject constructor(
         networkDataSource.requestLikeThread(thread.id, thread.firstPostId, like)
     }
 
+    suspend fun setThreadLiked(threadId: Long, firstPostId: Long, liked: Boolean) {
+        networkDataSource.requestLikeThread(threadId, firstPostId, liked)
+    }
+
     suspend fun requestLikeSubPost(threadId: Long, subPost: SubPostItemData) {
         val like = !subPost.like.liked // reverse like status
         networkDataSource.requestLikeSubpost(threadId, subPost.id, like)

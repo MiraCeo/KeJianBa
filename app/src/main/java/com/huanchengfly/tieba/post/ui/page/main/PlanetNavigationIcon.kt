@@ -42,6 +42,7 @@ private const val PlanetRadius = 7.4f
 private const val PlanetRestTilt = -22f
 private val PlanetOutline = Stroke(1.6f)
 private val PlanetRingOutline = Stroke(1.3f)
+private const val SelectedPlanetRingOutlineWidth = 1.7f
 private val PlanetSwingEasing = Easing { fraction ->
     ((1.0 - cos(PI * fraction)) * 0.5).toFloat()
 }
@@ -104,39 +105,22 @@ private class PlanetGeometry {
         Path().apply { addOval(frontInner) },
         sphereOcclusion,
     )
-    // Only the selected-state channel changes: a slightly wider, flatter sweep and clearer line.
-    // The sphere, solid ring silhouette and accepted unselected rendering remain untouched.
-    private val channelCenter = Rect(1.75f, 9.2f, 22.25f, 15f)
-    private val channelHalfWidth = 0.7f
-    // A single round-ended transparent channel inside the existing front band. Unlike the
-    // old clearance mask, this never removes the surrounding sphere or separates its rim.
+    // Hollow the full ring band in the selected state. Its outline is drawn outside this
+    // opening instead of narrowing it with an inset channel.
     private val frontChannel = Path.combine(
-        PathOperation.Union,
-        Path.combine(
-            PathOperation.Intersect,
-            ringPath(channelCenter.inflate(channelHalfWidth), channelCenter.inflate(-channelHalfWidth)),
-            Path().apply { addRect(Rect(0f, channelCenter.center.y, 24f, 24f)) },
-        ),
-        Path().apply {
-            for (x in listOf(channelCenter.left, channelCenter.right)) {
-                addOval(Rect(
-                    x - channelHalfWidth, channelCenter.center.y - channelHalfWidth,
-                    x + channelHalfWidth, channelCenter.center.y + channelHalfWidth,
-                ))
-            }
-        },
+        PathOperation.Intersect,
+        frontRing,
+        Path().apply { addRect(Rect(0f, PlanetCenter.y, 24f, 24f)) },
     )
-    private val rearChannelCenter = Rect(1.9f, 10.975f, 22.1f, 13.025f)
     private val rearChannel = Path.combine(
         PathOperation.Difference,
         Path.combine(
             PathOperation.Intersect,
-            ringPath(rearChannelCenter.inflate(channelHalfWidth), rearChannelCenter.inflate(-channelHalfWidth)),
-            Path().apply { addRect(Rect(0f, 0f, 24f, channelCenter.center.y)) },
+            rearRing,
+            Path().apply { addRect(Rect(0f, 0f, 24f, PlanetCenter.y)) },
         ),
         Path().apply {
-            // The rear opening continues around both exposed tips, but never cuts through
-            // the sphere or its outline. It disappears only where the sphere occludes it.
+            // Keep the rear opening behind the sphere and its outline.
             val radius = PlanetRadius + PlanetOutline.width / 2f
             addOval(Rect(
                 PlanetCenter.x - radius, PlanetCenter.y - radius,
@@ -163,7 +147,7 @@ private fun DrawScope.drawPlanet(geometry: PlanetGeometry, tint: Color, fill: Fl
     }
     if (fill < 1f) {
         // Fade the line open using the same progress as the sphere fill, without a saveLayer
-        // or a hard-coded background color. Both end states keep exactly the same geometry.
+        // or a hard-coded background color.
         clipPath(geometry.selectedChannel) {
             drawPlanetBody(geometry, tint.copy(alpha = tint.alpha * (1f - fill)), fill)
         }
@@ -171,23 +155,30 @@ private fun DrawScope.drawPlanet(geometry: PlanetGeometry, tint: Color, fill: Fl
 }
 
 private fun DrawScope.drawPlanetBody(geometry: PlanetGeometry, tint: Color, fill: Float) {
+    // Leave room for the selected ring's outward stroke at the sides.
+    val ringLeft = -SelectedPlanetRingOutlineWidth
+    val ringRight = 24f + SelectedPlanetRingOutlineWidth
     // The rear half disappears behind the sphere, even when the sphere is hollow.
-    clipRect(left = 0f, top = 0f, right = 24f, bottom = 12f) {
+    clipRect(left = ringLeft, top = 0f, right = ringRight, bottom = 12f) {
         clipPath(geometry.sphereOcclusion, ClipOp.Difference) {
-            drawPlanetRing(geometry.rearRing, tint)
+            drawPlanetRing(geometry.rearRing, tint, fill)
         }
     }
     drawCircle(tint, PlanetRadius, PlanetCenter, alpha = fill)
     drawCircle(tint, PlanetRadius, PlanetCenter, style = PlanetOutline)
-    clipRect(left = 0f, top = 12f, right = 24f, bottom = 24f) {
+    clipRect(left = ringLeft, top = 12f, right = ringRight, bottom = 24f) {
         drawPath(geometry.frontContacts, tint)
-        drawPlanetRing(geometry.frontRing, tint)
+        drawPlanetRing(geometry.frontRing, tint, fill)
     }
 }
 
-private fun DrawScope.drawPlanetRing(ring: Path, tint: Color) {
+private fun DrawScope.drawPlanetRing(ring: Path, tint: Color, fill: Float) {
     drawPath(ring, tint)
-    drawPath(ring, tint, style = PlanetRingOutline)
+    // At full selection the band is clipped out by selectedChannel. Doubling the centered
+    // stroke leaves a full-width outline outside the band, without consuming its opening.
+    val strokeWidth = PlanetRingOutline.width +
+            (SelectedPlanetRingOutlineWidth * 2f - PlanetRingOutline.width) * fill
+    drawPath(ring, tint, style = Stroke(strokeWidth))
 }
 
 internal fun planetSwingSpec(initialRotation: Float, selected: Boolean) = keyframes {

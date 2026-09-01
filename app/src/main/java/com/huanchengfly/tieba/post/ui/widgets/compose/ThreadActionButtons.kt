@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.theme.TiebaLiteTheme
@@ -39,12 +40,13 @@ private fun ActionBtn(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
     contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    verticalPadding: Dp = 16.dp,
     onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
             .onNotNull(onClick) { clickable(onClick = it) }
-            .padding(vertical = 16.dp),
+            .padding(vertical = verticalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
     ) {
@@ -76,6 +78,7 @@ fun ThreadActionButtonRow(
     replies: Int,
     likes: Long,
     liked: Boolean,
+    verticalPadding: Dp = 16.dp,
     onShareClicked: (() -> Unit)? = null,
     onReplyClicked: (() -> Unit)? = null,
     onAgreeClicked: (() -> Unit)? = null
@@ -89,6 +92,7 @@ fun ThreadActionButtonRow(
             text = context.shortNumString(shares, R.string.title_share),
             icon = Icons.Rounded.SwapCalls,
             contentDescription = stringResource(id = R.string.title_share),
+            verticalPadding = verticalPadding,
             onClick = onShareClicked,
         )
 
@@ -97,6 +101,7 @@ fun ThreadActionButtonRow(
             text = context.shortNumString(replies.toLong(), R.string.title_reply),
             icon = Icons.Rounded.CommentNew,
             contentDescription = stringResource(id = R.string.desc_comment),
+            verticalPadding = verticalPadding,
             onClick = onReplyClicked
         )
 
@@ -110,6 +115,7 @@ fun ThreadActionButtonRow(
             },
             contentDescription = stringResource(id = R.string.button_like),
             text = context.shortNumString(likes, R.string.button_like),
+            verticalPadding = verticalPadding,
             onClick = onAgreeClicked
         )
     }

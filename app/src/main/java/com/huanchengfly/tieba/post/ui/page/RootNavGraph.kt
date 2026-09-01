@@ -47,6 +47,7 @@ import com.huanchengfly.tieba.post.ui.page.hottopic.detail.TopicDetailPage
 import com.huanchengfly.tieba.post.ui.page.hottopic.list.HotTopicListPage
 import com.huanchengfly.tieba.post.ui.page.login.LoginPage
 import com.huanchengfly.tieba.post.ui.page.main.MainPage
+import com.huanchengfly.tieba.post.ui.page.main.explore.hot.MaterialThreadRankPage
 import com.huanchengfly.tieba.post.ui.page.main.notifications.NotificationsPage
 import com.huanchengfly.tieba.post.ui.page.main.notifications.list.NotificationsType
 import com.huanchengfly.tieba.post.ui.page.reply.ReplyPageBottomSheet
@@ -181,6 +182,10 @@ private fun SharedTransitionScope.buildRootNavGraph(
 
         composable<Destination.HotTopicDetail> {
             TopicDetailPage(navigator = navController)
+        }
+
+        composable<Destination.MaterialThreadRankList> {
+            MaterialThreadRankPage(navigator = navController)
         }
 
         composable<Destination.Login> {
