@@ -67,6 +67,11 @@ android {
             buildConfigField("long", "BUILD_TIME", "${epochSecond}L")
         }
 
+        // Distinct applicationId so debug installs side by side with release
+        debug {
+            applicationIdSuffix = ".debug"
+        }
+
         release {
             isMinifyEnabled = true
             isShrinkResources = true
