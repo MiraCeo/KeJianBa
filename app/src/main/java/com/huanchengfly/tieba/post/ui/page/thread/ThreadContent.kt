@@ -1,6 +1,7 @@
 package com.huanchengfly.tieba.post.ui.page.thread
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AlignVerticalTop
 import androidx.compose.material.icons.rounded.Poll
@@ -49,7 +51,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -106,6 +111,33 @@ sealed class Type(val key: String) {
     object LoadPrevious: Type("LoadPreviousBtn")
     object Post: Type("") // Use PostData.id as item key
 }
+
+private val ThreadCardShape = RoundedCornerShape(12.dp)
+private val ThreadReplyHeaderShape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+private val ThreadReplyFooterShape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
+private val ThreadCardHorizontalSpacing = 8.dp
+private val ThreadCardVerticalSpacing = 4.dp
+private val ThreadDividerColor = Color(0xFFDDDDDD)
+
+private fun Modifier.threadReplySurface(
+    color: Color,
+    roundedTop: Boolean = false,
+    drawDivider: Boolean = true,
+): Modifier = this
+    .padding(horizontal = ThreadCardHorizontalSpacing)
+    .clip(if (roundedTop) ThreadReplyHeaderShape else RoundedCornerShape(0.dp))
+    .background(color)
+    .drawBehind {
+        if (drawDivider) {
+            val inset = 16.dp.toPx()
+            drawLine(
+                color = ThreadDividerColor,
+                start = Offset(inset, size.height - 0.5f),
+                end = Offset(size.width - inset, size.height - 0.5f),
+                strokeWidth = 1f,
+            )
+        }
+    }
 
 /**
  * Get [LazyListItemInfo.offset] of first visible post.
@@ -301,6 +333,7 @@ fun StateScreenScope.ThreadContent(
     val isLoadingMore = state.isLoadingMore
     val hasMore = state.pageData.hasMore
     val localUid = state.user?.id
+    val surfaceColor = MaterialTheme.colorScheme.surface
 
     val onSwipeUpRefresh: (() -> Unit)? = viewModel::requestLoadLatestPosts.takeIf {
         state.data.isNotEmpty() && state.sortType == ThreadSortType.BY_ASC
@@ -326,7 +359,15 @@ fun StateScreenScope.ThreadContent(
         ) {
             item(key = Type.FirstPost.key, contentType = Type.FirstPost) {
                 val firstPost = state.firstPost ?: return@item
-                Column {
+                Column(
+                    modifier = Modifier
+                        .padding(
+                            horizontal = ThreadCardHorizontalSpacing,
+                            vertical = ThreadCardVerticalSpacing,
+                        )
+                        .clip(ThreadCardShape)
+                        .background(surfaceColor)
+                ) {
                     PostCardItem(viewModel, firstPost, localUid, collectPid)
 
                     state.thread?.originThreadInfo?.let { info ->
@@ -347,9 +388,11 @@ fun StateScreenScope.ThreadContent(
                         )
                     }
 
+                    val physicalDividerThickness = with(LocalDensity.current) { 1f.toDp() }
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                        thickness = 2.dp
+                        thickness = physicalDividerThickness,
+                        color = ThreadDividerColor,
                     )
                 }
             }
@@ -360,28 +403,47 @@ fun StateScreenScope.ThreadContent(
                         val appbarState = topAppBarScrollBehavior.state
                         val colors = TiebaLiteTheme.topAppBarColors
                         ThreadHeader(
-                            modifier = Modifier.stickyHeaderBackground(appbarState, colors, lazyListState),
+                            modifier = Modifier
+                                .padding(horizontal = ThreadCardHorizontalSpacing)
+                                .clip(ThreadReplyHeaderShape)
+                                .stickyHeaderBackground(appbarState, colors, lazyListState),
                             uiState = state,
                             viewModel = viewModel
                         )
                     }
                 } else {
                     item(key = Type.Header.key, contentType = Type.Header) {
-                        ThreadHeader(uiState = state, viewModel = viewModel)
+                        ThreadHeader(
+                            modifier = Modifier.threadReplySurface(surfaceColor, roundedTop = true),
+                            uiState = state,
+                            viewModel = viewModel,
+                        )
                     }
                 }
             }
 
             if (state.sortType == ThreadSortType.BY_DESC && !latestPosts.isNullOrEmpty()) {
                 items(items = latestPosts, key = { post -> "LatestPost_${post.id}" }) { post ->
-                    PostCardItem(viewModel, post, localUid, collectPid)
+                    PostCardItem(
+                        viewModel,
+                        post,
+                        localUid,
+                        collectPid,
+                        modifier = Modifier.threadReplySurface(surfaceColor),
+                    )
                 }
-                postTipItem(isDesc = true)    // DESC tip on bottom
+                postTipItem(
+                    isDesc = true,
+                    modifier = Modifier.threadReplySurface(surfaceColor),
+                ) // DESC tip on bottom
             }
 
             if (state.pageData.hasPrevious) {
                 item(key = Type.LoadPrevious.key, contentType = Type.LoadPrevious) {
-                    LoadPreviousButton(isLoading = state.isLoadingMore) {
+                    LoadPreviousButton(
+                        isLoading = state.isLoadingMore,
+                        modifier = Modifier.threadReplySurface(surfaceColor),
+                    ) {
                         viewModel.requestLoadPrevious(offset = lazyListState.firstVisiblePostOffset())
                     }
                 }
@@ -390,21 +452,51 @@ fun StateScreenScope.ThreadContent(
             if (state.data.isEmpty()) {
                 item(key = "EmptyTip") {
                     DefaultEmptyScreen(
-                        modifier = Modifier.fillParentMaxHeight(fraction = 0.9f),
+                        modifier = Modifier
+                            .threadReplySurface(surfaceColor, drawDivider = false)
+                            .fillParentMaxHeight(fraction = 0.9f),
                         titleRes = if (state.seeLz) R.string.title_lz_empty else R.string.title_empty,
                         messageRes = R.string.message_turn_off_see_lz.takeIf { state.seeLz },
                     )
                 }
             } else {
                 items(items = state.data, key = { it.id }, contentType = { Type.Post }) { item ->
-                    PostCardItem(viewModel, item, localUid, collectPid)
+                    PostCardItem(
+                        viewModel,
+                        item,
+                        localUid,
+                        collectPid,
+                        modifier = Modifier.threadReplySurface(surfaceColor),
+                    )
                 }
             }
 
             if (state.sortType != ThreadSortType.BY_DESC && !latestPosts.isNullOrEmpty()) {
-                postTipItem(isDesc = false)  // ASC Tip on top
+                postTipItem(
+                    isDesc = false,
+                    modifier = Modifier.threadReplySurface(surfaceColor),
+                ) // ASC Tip on top
                 items(items = latestPosts, key = { post -> "LatestPost_${post.id}" }) { post ->
-                    PostCardItem(viewModel, post, localUid, collectPid)
+                    PostCardItem(
+                        viewModel,
+                        post,
+                        localUid,
+                        collectPid,
+                        modifier = Modifier.threadReplySurface(surfaceColor),
+                    )
+                }
+            }
+
+            if (state.thread != null) {
+                item(key = "ThreadReplyFooter") {
+                    Spacer(
+                        modifier = Modifier
+                            .padding(horizontal = ThreadCardHorizontalSpacing)
+                            .fillMaxWidth()
+                            .height(12.dp)
+                            .clip(ThreadReplyFooterShape)
+                            .background(surfaceColor)
+                    )
                 }
             }
         }
@@ -412,9 +504,10 @@ fun StateScreenScope.ThreadContent(
 }
 
 @Composable
-private fun LoadPreviousButton(isLoading: Boolean, onClick: () -> Unit) {
+private fun LoadPreviousButton(modifier: Modifier = Modifier, isLoading: Boolean, onClick: () -> Unit) {
     TextButton(
         onClick = onClick,
+        modifier = modifier,
         enabled = !isLoading,
         shape = MaterialTheme.shapes.extraSmall
     ) {
@@ -441,9 +534,9 @@ private fun LoadPreviousButton(isLoading: Boolean, onClick: () -> Unit) {
     }
 }
 
-private fun LazyListScope.postTipItem(isDesc: Boolean) = this.item("LatestPostsTip") {
+private fun LazyListScope.postTipItem(isDesc: Boolean, modifier: Modifier = Modifier) = this.item("LatestPostsTip") {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -461,7 +554,13 @@ private fun LazyListScope.postTipItem(isDesc: Boolean) = this.item("LatestPostsT
 }
 
 @Composable
-private fun PostCardItem(viewModel: ThreadViewModel, post: PostData, localUid: Long?, collectPid: Long) {
+private fun PostCardItem(
+    viewModel: ThreadViewModel,
+    post: PostData,
+    localUid: Long?,
+    collectPid: Long,
+    modifier: Modifier = Modifier,
+) {
     val navigator = LocalNavController.current
     val loggedIn = localUid != null
     val onUserClickedListener: () -> Unit = {
@@ -472,6 +571,7 @@ private fun PostCardItem(viewModel: ThreadViewModel, post: PostData, localUid: L
 
     if (loggedIn) {
         PostCard(
+            modifier = modifier,
             post = post,
             immersiveMode = viewModel.isImmersiveMode,
             isCollected = post.id == collectPid,
@@ -497,6 +597,7 @@ private fun PostCardItem(viewModel: ThreadViewModel, post: PostData, localUid: L
         )
     } else {
         PostCard(
+            modifier = modifier,
             post = post,
             immersiveMode = viewModel.isImmersiveMode,
             onUserClick = onUserClickedListener,
@@ -602,6 +703,7 @@ private fun SubPostBlockedTip(modifier: Modifier = Modifier) {
 @Composable
 fun PostCard(
     post: PostData,
+    modifier: Modifier = Modifier,
     immersiveMode: Boolean = false,
     isCollected: Boolean = false,
     onUserClick: () -> Unit = {},
@@ -624,7 +726,7 @@ fun PostCard(
 
     BlockableContent(
         blocked = post.blocked,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         blockedTip = {
             BlockTip {
                 Text(stringResource(id = R.string.tip_blocked_post, post.floor))
@@ -748,7 +850,8 @@ fun PostCard(
                             )
                         }
                     }
-                }
+                },
+                verticalPadding = if (post.floor > 1) 12.dp else 16.dp,
             )
         }
     }

@@ -154,6 +154,7 @@ fun Card(
     action: @Composable (ColumnScope.() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     contentPadding: PaddingValues = DefaultCardPaddings,
+    verticalPadding: Dp = 16.dp,
 ) {
     Column(
         modifier = modifier
@@ -161,7 +162,7 @@ fun Card(
                 onClick?.let { clickable(onClick = it) }
             }
             .block {
-                if (action != null) padding(top = 16.dp) else padding(vertical = 16.dp)
+                if (action != null) padding(top = verticalPadding) else padding(vertical = verticalPadding)
             }
             .padding(contentPadding)
     ) {

@@ -2,7 +2,6 @@ package com.huanchengfly.tieba.post.ui.page.thread
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,8 +34,6 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Face6
 import androidx.compose.material.icons.rounded.FaceRetouchingOff
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.RocketLaunch
@@ -99,7 +96,6 @@ import androidx.compose.ui.util.fastFirstOrNull
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.huanchengfly.tieba.post.LocalHabitSettings
-import com.huanchengfly.tieba.post.LocalUISettings
 import com.huanchengfly.tieba.post.MacrobenchmarkConstant
 import com.huanchengfly.tieba.post.NoWindowInsets
 import com.huanchengfly.tieba.post.R
@@ -111,7 +107,6 @@ import com.huanchengfly.tieba.post.arch.isOverlapping
 import com.huanchengfly.tieba.post.arch.onGlobalEvent
 import com.huanchengfly.tieba.post.navigateDebounced
 import com.huanchengfly.tieba.post.theme.TiebaLiteTheme
-import com.huanchengfly.tieba.post.theme.isTranslucent
 import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.common.FadedVisibility
 import com.huanchengfly.tieba.post.ui.common.LocalAnimatedVisibilityScope
@@ -129,6 +124,7 @@ import com.huanchengfly.tieba.post.ui.models.SimpleForum
 import com.huanchengfly.tieba.post.ui.models.UserData
 import com.huanchengfly.tieba.post.ui.page.Destination.Forum
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
+import com.huanchengfly.tieba.post.ui.page.main.mainTopBarDividers
 import com.huanchengfly.tieba.post.ui.page.setResult
 import com.huanchengfly.tieba.post.ui.page.threadstore.ThreadStoreUiEvent
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
@@ -143,6 +139,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.Container
 import com.huanchengfly.tieba.post.ui.widgets.compose.Dialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogNegativeButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.ListMenuItem
+import com.huanchengfly.tieba.post.ui.widgets.compose.AnimatedLikeThumbIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.LocalHazeState
 import com.huanchengfly.tieba.post.ui.widgets.compose.PlainTooltipBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.PromptDialog
@@ -166,7 +163,10 @@ import com.huanchengfly.tieba.post.utils.trace
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-private val ThreadToolbarContainerHeight = 48.dp
+private val ThreadToolbarContainerHeight = 46.dp
+private val ThreadToolbarHorizontalSpacing = CardHorizontalSpacing + 4.dp
+private val ThreadToolbarShadowElevation = 3.dp
+private val ThreadPageLightBackground = Color(0xFFF5F5F5)
 
 /**
  * Offset from the edge of the screen used for [ThreadFloatingToolbar].
@@ -410,8 +410,13 @@ fun ThreadPage(
         }
     }
 
+    val pageBackground = if (TiebaLiteTheme.extendedColorScheme.darkTheme) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        ThreadPageLightBackground
+    }
     StateScreen(
-        modifier = Modifier.background(MaterialTheme.colorScheme.surface),
+        modifier = Modifier.background(pageBackground),
         isEmpty =  isEmpty,
         isLoading = state.isRefreshing,
         error = state.error,
@@ -424,7 +429,9 @@ fun ThreadPage(
             },
             attachHazeContentState = false, // Attach manually since we're blurring the BottomSheet
             topBar = {
+                val toolbarColor = MaterialTheme.colorScheme.surface.copy(alpha = 1f)
                 CenterAlignedTopAppBar(
+                    modifier = Modifier.mainTopBarDividers(),
                     title = {
                         state.forum?.let { forum ->
                             ForumTitleChip(forum = forum) {
@@ -453,6 +460,10 @@ fun ThreadPage(
                             }
                         }
                     },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = toolbarColor,
+                        scrolledContainerColor = toolbarColor,
+                    ),
                     scrollBehavior = topAppBarScrollBehavior
                 ) {
                     if (useStickyHeaderWorkaround && state.thread?.replyNum != null) {
@@ -470,7 +481,7 @@ fun ThreadPage(
                         modifier = Modifier
                             .windowInsetsPadding(WindowInsets.navigationBars)
                             .offset(y = -ThreadToolbarScreenOffset)
-                            .padding(horizontal = CardHorizontalSpacing)
+                            .padding(horizontal = ThreadToolbarHorizontalSpacing)
                             .animateEnterExit(
                                 animatedVisibilityScope = LocalAnimatedVisibilityScope.current,
                                 sharedTransitionScope = LocalSharedTransitionScope.current,
@@ -483,7 +494,8 @@ fun ThreadPage(
                         onJumpPage = jumpToPageDialogState::show,
                         like = state.thread?.like ?: LikeZero,
                         onLiked = viewModel::onThreadLikeClicked,
-                        scrollBehavior = toolbarScrollBehavior
+                        scrollBehavior = toolbarScrollBehavior,
+                        shadowElevation = ThreadToolbarShadowElevation,
                     )
                 }
             },
@@ -858,15 +870,12 @@ private fun ThreadFloatingToolbar(
     like: Like = LikeZero,
     onLiked: () -> Unit = {},
     scrollBehavior: FloatingToolbarScrollBehavior? = null,
-    shadowElevation: Dp = FloatingToolbarDefaults.ContainerExpandedElevationWithFab,
+    shadowElevation: Dp = ThreadToolbarShadowElevation,
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    // Default: FloatingToolbarTokens.VibrantContainerColor
-    val toolbarContainerColor = colorScheme.primaryContainer.let {
-        if (!colorScheme.isTranslucent && !LocalUISettings.current.reduceEffect) it.copy(alpha = 0.7f) else it
-    }
+    val toolbarContainerColor = colorScheme.surface.copy(alpha = 1f)
 
-    ProvideContentColor(colorScheme.onPrimaryContainer) {
+    ProvideContentColor(colorScheme.onSurface) {
         Row(
             modifier = modifier
                 .onNotNull(scrollBehavior) {
@@ -878,7 +887,6 @@ private fun ThreadFloatingToolbar(
                     this.shape = CircleShape
                     this.clip = true
                 }
-                .withNonNull(LocalHazeState.current) { Modifier.defaultHazeEffect() }
                 .background(color = toolbarContainerColor, shape = CircleShape)
                 .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -889,7 +897,7 @@ private fun ThreadFloatingToolbar(
                 contentDescription = avatarContentDescription
             ) {
                 Avatar(
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(36.dp),
                     data = user?.avatarUrl ?: R.drawable.ic_launcher_new_round,
                     contentDescription = avatarContentDescription
                 )
@@ -961,15 +969,11 @@ private fun LikeAction(modifier: Modifier = Modifier, like: Like, onClick: () ->
                 }
             },
         ) {
-            val animatedColor by animateColorAsState(
-                targetValue = if (like.liked) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-            )
             IconButton(onClick = onClick) {
-                Icon(
-                    imageVector = if (like.liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                AnimatedLikeThumbIcon(
+                    liked = like.liked,
                     modifier = Modifier.size(24.dp),
-                    contentDescription = null,
-                    tint = animatedColor
+                    inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
