@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -265,7 +266,7 @@ private fun MaterialThreadRankCardSection(
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     thickness = dividerThickness,
-                    color = Color(0xFFDDDDDD),
+                    color = DividerDefaults.color,
                 )
             }
         }
@@ -273,7 +274,7 @@ private fun MaterialThreadRankCardSection(
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),
             thickness = dividerThickness,
-            color = Color(0xFFDDDDDD),
+            color = DividerDefaults.color,
         )
         Row(
             modifier = Modifier
@@ -765,7 +766,7 @@ private fun ThreadTabs(
 
         HorizontalDivider(
             thickness = dividerThickness,
-            color = Color(0xFFDDDDDD),
+            color = DividerDefaults.color,
         )
     }
 }

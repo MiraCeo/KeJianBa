@@ -546,13 +546,16 @@ private fun FeedForumSource(
     }
 }
 
-private val FeedActionDividerColor = Color(0xFFDDDDDD)
-
-private fun Modifier.feedActionDivider(): Modifier = drawWithCache {
-    onDrawWithContent {
-        drawContent()
-        if (size.width > 0f && size.height >= 1f) {
-            drawRect(FeedActionDividerColor, Offset.Zero, Size(size.width, 1f))
+@Composable
+private fun Modifier.feedActionDivider(): Modifier {
+    // DrawScope is not composable: read the theme colour before entering the cache.
+    val dividerColor = DividerDefaults.color
+    return drawWithCache {
+        onDrawWithContent {
+            drawContent()
+            if (size.width > 0f && size.height >= 1f) {
+                drawRect(dividerColor, Offset.Zero, Size(size.width, 1f))
+            }
         }
     }
 }

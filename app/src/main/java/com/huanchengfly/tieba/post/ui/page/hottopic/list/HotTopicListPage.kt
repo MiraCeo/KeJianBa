@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -405,6 +406,8 @@ private fun TwoLineTopicDescriptionWithTrailingHeat(
 @Composable
 private fun TopicListDivider(modifier: Modifier = Modifier) {
     val twoPhysicalPixels = with(LocalDensity.current) { 2f.toDp() }
+    // DrawScope is not composable: read the theme colour up front.
+    val dividerColor = DividerDefaults.color
 
     Canvas(
         modifier = modifier
@@ -413,7 +416,7 @@ private fun TopicListDivider(modifier: Modifier = Modifier) {
     ) {
         val lineY = size.height / 2f
         drawLine(
-            color = Color(0xFFDDDDDD),
+            color = dividerColor,
             start = Offset(0f, lineY),
             end = Offset(size.width, lineY),
             strokeWidth = 2f,

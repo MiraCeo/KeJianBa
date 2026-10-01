@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -152,7 +153,7 @@ fun MaterialThreadRankPage(
                         }
                         HorizontalDivider(
                             thickness = dividerThickness,
-                            color = Color(0xFFDDDDDD),
+                            color = DividerDefaults.color,
                         )
                     }
 
@@ -190,7 +191,7 @@ fun MaterialThreadRankPage(
                                     .background(MaterialTheme.colorScheme.surface)
                                     .padding(horizontal = 16.dp),
                                 thickness = dividerThickness,
-                                color = Color(0xFFDDDDDD),
+                                color = DividerDefaults.color,
                             )
                         }
                     }
