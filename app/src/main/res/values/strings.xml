@@ -242,6 +242,7 @@
     <string name="title_home_list_style">列表样式</string>
     <string name="text_load_failed">加载失败</string>
     <string name="title_search_forum">搜吧</string>
+    <string name="forum_square_search_hint">全站搜吧</string>
     <string name="title_search_thread">搜贴</string>
     <string name="title_search_user">搜人</string>
     <string name="title_search_history">搜索历史</string>
