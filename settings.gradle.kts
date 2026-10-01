@@ -20,7 +20,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TiebaLite"
+rootProject.name = "KeJianBa"
 include(":app")
 include(":macrobenchmark")
 include(":material-color-utilities")
