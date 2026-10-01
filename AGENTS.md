@@ -2,7 +2,39 @@
 
 - Render Tieba forum avatars with `ui/widgets/compose/ForumAvatar` and its shared `ForumAvatarShape` (squircle with gently bowed sides). Use the same shape for forum-avatar placeholders. Do not substitute ordinary rounded rectangles or circles.
 - Keep account, author, and other user avatars separate: they continue using `Avatar` and their existing styles.
-- The Home "吧广场" tab is intentionally blank until explicitly requested; do not add network requests, categories, or placeholder features to it.
+- The Home "吧广场" tab is implemented and live — see the Forum Square section below before changing it.
+
+# Forum Square (吧广场)
+
+The Home "吧广场" tab is **fully implemented and shipping**. It is page 1 of the
+Home pager (`ui/page/main/home/HomePage.kt`) and consists of
+`ForumSquarePage.kt`, `ForumSquareViewModel.kt`, `ForumSquareCategoryRail.kt`,
+`repository/ForumSquareRepository`, `protos/ForumSquare/ForumSquare.proto`, and
+unit tests under `ui/page/main/ForumSquareTest.kt`,
+`ForumSquareRecommendationTest.kt`, and `home/ForumSquareCategoryRailTest.kt`.
+
+An earlier revision of this file described the tab as "intentionally blank".
+That is obsolete: the tab has a category rail, live network data, follow
+buttons, pull-to-refresh, and endless scrolling. Do not blank it, stub it, or
+strip its network calls.
+
+Preserve these invariants when touching it:
+
+- **Off-screen composition must not fetch.** The Home pager keeps the square
+  composed with `beyondViewportPageCount = 1`, so the page exists before it is
+  selected. Fetching is gated on `isActive`, threaded through
+  `activate(uid, isActive)` / `deactivate()`. Never move a request into
+  composition or a bare `LaunchedEffect(Unit)`.
+- **`generation` tokens guard against races.** Switching category or account
+  bumps `generation` and cancels the in-flight job; late responses are dropped
+  by comparing the token. A different account resets the whole state.
+- **`paused` is deliberate, not a bug.** When the server still reports
+  `hasMore` but a page contributes no new forums, automatic load-more stops and
+  waits for an explicit user action. Do not "fix" this into an auto-retry loop:
+  it is what prevents infinite paging on duplicate pages.
+- **Responses are validated.** A mismatch between the requested and returned
+  category or page raises `IOException`. Keep that check.
+- Forum rows use `ForumAvatar` per the avatar convention above.
 
 # Agent environment (MCP mode)
 
