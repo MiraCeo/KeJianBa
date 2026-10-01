@@ -31,6 +31,7 @@ import androidx.compose.material.icons.sharp.AccessTime
 import androidx.compose.material.icons.sharp.Check
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -117,10 +118,10 @@ private val ThreadReplyHeaderShape = RoundedCornerShape(topStart = 12.dp, topEnd
 private val ThreadReplyFooterShape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
 private val ThreadCardHorizontalSpacing = 8.dp
 private val ThreadCardVerticalSpacing = 4.dp
-private val ThreadDividerColor = Color(0xFFDDDDDD)
 
 private fun Modifier.threadReplySurface(
     color: Color,
+    dividerColor: Color,
     roundedTop: Boolean = false,
     drawDivider: Boolean = true,
 ): Modifier = this
@@ -131,7 +132,7 @@ private fun Modifier.threadReplySurface(
         if (drawDivider) {
             val inset = 16.dp.toPx()
             drawLine(
-                color = ThreadDividerColor,
+                color = dividerColor,
                 start = Offset(inset, size.height - 0.5f),
                 end = Offset(size.width - inset, size.height - 0.5f),
                 strokeWidth = 1f,
@@ -334,6 +335,7 @@ fun StateScreenScope.ThreadContent(
     val hasMore = state.pageData.hasMore
     val localUid = state.user?.id
     val surfaceColor = MaterialTheme.colorScheme.surface
+    val dividerColor = DividerDefaults.color
 
     val onSwipeUpRefresh: (() -> Unit)? = viewModel::requestLoadLatestPosts.takeIf {
         state.data.isNotEmpty() && state.sortType == ThreadSortType.BY_ASC
@@ -392,7 +394,7 @@ fun StateScreenScope.ThreadContent(
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                         thickness = physicalDividerThickness,
-                        color = ThreadDividerColor,
+                        color = dividerColor,
                     )
                 }
             }
@@ -414,7 +416,11 @@ fun StateScreenScope.ThreadContent(
                 } else {
                     item(key = Type.Header.key, contentType = Type.Header) {
                         ThreadHeader(
-                            modifier = Modifier.threadReplySurface(surfaceColor, roundedTop = true),
+                            modifier = Modifier.threadReplySurface(
+                                surfaceColor,
+                                dividerColor,
+                                roundedTop = true,
+                            ),
                             uiState = state,
                             viewModel = viewModel,
                         )
@@ -429,12 +435,12 @@ fun StateScreenScope.ThreadContent(
                         post,
                         localUid,
                         collectPid,
-                        modifier = Modifier.threadReplySurface(surfaceColor),
+                        modifier = Modifier.threadReplySurface(surfaceColor, dividerColor),
                     )
                 }
                 postTipItem(
                     isDesc = true,
-                    modifier = Modifier.threadReplySurface(surfaceColor),
+                    modifier = Modifier.threadReplySurface(surfaceColor, dividerColor),
                 ) // DESC tip on bottom
             }
 
@@ -442,7 +448,7 @@ fun StateScreenScope.ThreadContent(
                 item(key = Type.LoadPrevious.key, contentType = Type.LoadPrevious) {
                     LoadPreviousButton(
                         isLoading = state.isLoadingMore,
-                        modifier = Modifier.threadReplySurface(surfaceColor),
+                        modifier = Modifier.threadReplySurface(surfaceColor, dividerColor),
                     ) {
                         viewModel.requestLoadPrevious(offset = lazyListState.firstVisiblePostOffset())
                     }
@@ -453,7 +459,7 @@ fun StateScreenScope.ThreadContent(
                 item(key = "EmptyTip") {
                     DefaultEmptyScreen(
                         modifier = Modifier
-                            .threadReplySurface(surfaceColor, drawDivider = false)
+                            .threadReplySurface(surfaceColor, dividerColor, drawDivider = false)
                             .fillParentMaxHeight(fraction = 0.9f),
                         titleRes = if (state.seeLz) R.string.title_lz_empty else R.string.title_empty,
                         messageRes = R.string.message_turn_off_see_lz.takeIf { state.seeLz },
@@ -466,7 +472,7 @@ fun StateScreenScope.ThreadContent(
                         item,
                         localUid,
                         collectPid,
-                        modifier = Modifier.threadReplySurface(surfaceColor),
+                        modifier = Modifier.threadReplySurface(surfaceColor, dividerColor),
                     )
                 }
             }
@@ -474,7 +480,7 @@ fun StateScreenScope.ThreadContent(
             if (state.sortType != ThreadSortType.BY_DESC && !latestPosts.isNullOrEmpty()) {
                 postTipItem(
                     isDesc = false,
-                    modifier = Modifier.threadReplySurface(surfaceColor),
+                    modifier = Modifier.threadReplySurface(surfaceColor, dividerColor),
                 ) // ASC Tip on top
                 items(items = latestPosts, key = { post -> "LatestPost_${post.id}" }) { post ->
                     PostCardItem(
@@ -482,7 +488,7 @@ fun StateScreenScope.ThreadContent(
                         post,
                         localUid,
                         collectPid,
-                        modifier = Modifier.threadReplySurface(surfaceColor),
+                        modifier = Modifier.threadReplySurface(surfaceColor, dividerColor),
                     )
                 }
             }
