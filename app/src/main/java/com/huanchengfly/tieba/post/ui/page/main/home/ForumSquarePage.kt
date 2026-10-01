@@ -82,7 +82,10 @@ internal fun ForumSquarePage(
         // top bar from the two-column content and gives the category rail a top boundary.
         // Search is unified app-wide, so this just opens the search page, which already
         // starts on its 搜吧 tab.
-        ForumSquareSearchEntry(onClick = { navigator.navigateDebounced(Destination.Search) })
+        ForumSquareSearchEntry(
+            fieldColor = surfaceColor,
+            onClick = { navigator.navigateDebounced(Destination.Search) },
+        )
         Row(
             // Flush columns: only scaffold/system insets remain, with no card gutter.
             Modifier.fillMaxSize().background(surfaceColor),
@@ -175,7 +178,13 @@ internal fun ForumSquarePage(
                                     }
                                 }
                             }
-                            item(key = "status") {
+                            // Only emit the footer when it actually renders something. A footer
+                            // that is always present becomes the scroll anchor while the list is
+                            // still empty, and LazyColumn then preserves its position as the first
+                            // page is inserted in front of it, leaving the user mid-list.
+                            val showStatus = state.loadingMore || state.error != null ||
+                                (!state.refreshing && state.initialized)
+                            if (showStatus) item(key = "status") {
                                 Column(
                                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -219,13 +228,18 @@ internal fun ForumSquarePage(
 }
 
 @Composable
-private fun ForumSquareSearchEntry(onClick: () -> Unit) {
+private fun ForumSquareSearchEntry(fieldColor: Color, onClick: () -> Unit) {
+    // Tieba's own treatment: the surrounding band carries the page background and the field
+    // itself is content-white. Sampled from the official client: #F6F6F8 band, #FFFFFF field.
+    val trackColor = if (MainCardStyle.enabled) MainCardStyle.background
+    else MaterialTheme.colorScheme.background
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(trackColor)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(fieldColor)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
