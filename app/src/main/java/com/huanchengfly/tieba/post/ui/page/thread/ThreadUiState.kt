@@ -22,7 +22,8 @@ data class ThreadUiState(
     val tbs: String? = null,
     val data: List<PostData> = emptyList(),
     val latestPosts: List<PostData>? = null,
-    val pageData: PageData = PageData()
+    val pageData: PageData = PageData(),
+    val pageAnchors: List<PageAnchor> = emptyList(),
 ) : UiState {
 
     val lz: UserData?
@@ -30,4 +31,30 @@ data class ThreadUiState(
 
     val forum: SimpleForum?
         get() = thread?.simpleForum
+
+    /**
+     * Which page the given floor sits on.
+     *
+     * [data] holds every page loaded so far, so [PageData.current] only tells us how far
+     * loading has reached - it goes stale as soon as the reader scrolls back up. Anchors are
+     * stored in display order, which makes one comparison work for both sort directions.
+     */
+    fun pageOfFloor(floor: Int): Int {
+        if (pageAnchors.isEmpty()) return pageData.current
+        val descending = sortType == ThreadSortType.BY_DESC
+        var page = pageAnchors.first().page
+        for (anchor in pageAnchors) {
+            val reached = if (descending) floor <= anchor.firstFloor else floor >= anchor.firstFloor
+            if (!reached) break
+            page = anchor.page
+        }
+        return page
+    }
 }
+
+/**
+ * Start of one loaded page. Keyed by floor rather than list index so that prepending an
+ * earlier page does not invalidate the anchors already recorded.
+ */
+@Immutable
+data class PageAnchor(val firstFloor: Int, val page: Int)

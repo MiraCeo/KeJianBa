@@ -173,7 +173,8 @@ class ThreadViewModel @Inject constructor(
                 )
             }
             _uiState.update {
-                it.updateStateFrom(response).copy(pageData = pageData)
+                it.updateStateFrom(response)
+                    .copy(pageData = pageData, pageAnchors = anchorsOf(response.posts, pageData.current))
             }
             if (scrollToReply) {
                 sendUiEvent(ThreadUiEvent.LoadSuccess(page, postId))
@@ -201,7 +202,11 @@ class ThreadViewModel @Inject constructor(
                 )
             }
             _uiState.update {
-                it.updateStateFrom(response).copy(firstPost = it.firstPost, pageData = pageData)
+                it.updateStateFrom(response).copy(
+                    firstPost = it.firstPost,
+                    pageData = pageData,
+                    pageAnchors = anchorsOf(response.posts, pageData.current),
+                )
             }
             // Scroll LazyList based on current sort type
             if (isAscSorting) {
@@ -251,7 +256,13 @@ class ThreadViewModel @Inject constructor(
             )
 
             _uiState.update {
-                it.copy(isLoadingMore = false, thread = response.thread, data = newData, pageData = pageData)
+                it.copy(
+                    isLoadingMore = false,
+                    thread = response.thread,
+                    data = newData,
+                    pageData = pageData,
+                    pageAnchors = anchorsOf(response.posts, page) + it.pageAnchors,
+                )
             }
             // Scroll to previous floor
             val previousIndex = withContext(Dispatchers.Default) {
@@ -281,7 +292,11 @@ class ThreadViewModel @Inject constructor(
             )
 
             _uiState.update {
-                it.updateStateFrom(response).copy(data = newData, pageData = pageData)
+                it.updateStateFrom(response).copy(
+                    data = newData,
+                    pageData = pageData,
+                    pageAnchors = it.pageAnchors + anchorsOf(response.posts, nextPage),
+                )
             }
         }
     }
@@ -648,6 +663,10 @@ class ThreadViewModel @Inject constructor(
             ThreadUiEvent.ToSubPostsDestination(SubPosts(threadId, forumId, post.id, subPostId))
         )
     }
+
+    /** @see ThreadUiState.pageOfFloor */
+    private fun anchorsOf(posts: List<PostData>, page: Int): List<PageAnchor> =
+        posts.firstOrNull()?.let { listOf(PageAnchor(firstFloor = it.floor, page = page)) }.orEmpty()
 
     private fun ThreadUiState.updateStateFrom(response: PbPageUiResponse): ThreadUiState {
         if (response.user == null) {

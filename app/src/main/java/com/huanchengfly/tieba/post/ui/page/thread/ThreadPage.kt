@@ -257,6 +257,20 @@ fun ThreadPage(
     // Back-to-top lives in the FAB slot now, like every other list page. Short threads
     // need a smaller reveal threshold than the default (index >= visibleItemCount), which
     // a list shorter than about two screens can never reach.
+    // Reply items are keyed by post id, so the topmost Long key is the floor in view.
+    // Falling back to the oldest loaded page (not pageData.current) keeps the number honest
+    // when only the first post is on screen.
+    val viewingPage by remember {
+        derivedStateOf {
+            val topPostId = lazyListState.layoutInfo.visibleItemsInfo
+                .firstNotNullOfOrNull { it.key as? Long }
+            val floor = topPostId?.let { id -> state.data.firstOrNull { it.id == id }?.floor }
+            floor?.let(state::pageOfFloor)
+                ?: state.pageAnchors.firstOrNull()?.page
+                ?: state.pageData.current
+        }
+    }
+
     var isBackToTopVisible by remember { mutableStateOf(false) }
     LaunchedBackToTopFabStateEffect(
         listState = lazyListState,
@@ -491,7 +505,7 @@ fun ThreadPage(
                         onClickReply = viewModel::onReplyThread.takeUnless { viewModel.hideReply },
                         onClickMore =  openBottomSheet,
                         onJumpPage = jumpToPageDialogState::show,
-                        currentPage = state.pageData.current,
+                        currentPage = viewingPage,
                         totalPage = state.pageData.total,
                         like = state.thread?.like ?: LikeZero,
                         onLiked = viewModel::onThreadLikeClicked,
