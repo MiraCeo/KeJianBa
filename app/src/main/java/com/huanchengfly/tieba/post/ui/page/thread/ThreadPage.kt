@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -41,12 +42,10 @@ import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
-import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.FloatingToolbarDefaults
-import androidx.compose.material3.FloatingToolbarExitDirection.Companion.Bottom
 import androidx.compose.material3.FloatingToolbarScrollBehavior
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -108,9 +107,9 @@ import com.huanchengfly.tieba.post.arch.isFullyCollapsed
 import com.huanchengfly.tieba.post.arch.isOverlapping
 import com.huanchengfly.tieba.post.arch.onGlobalEvent
 import com.huanchengfly.tieba.post.navigateDebounced
+import com.huanchengfly.tieba.post.plus
 import com.huanchengfly.tieba.post.theme.TiebaLiteTheme
 import com.huanchengfly.tieba.post.toastShort
-import com.huanchengfly.tieba.post.ui.common.FadedVisibility
 import com.huanchengfly.tieba.post.ui.common.LocalAnimatedVisibilityScope
 import com.huanchengfly.tieba.post.ui.common.LocalSharedTransitionScope
 import com.huanchengfly.tieba.post.ui.common.animateEnterExit
@@ -132,6 +131,7 @@ import com.huanchengfly.tieba.post.ui.page.setResult
 import com.huanchengfly.tieba.post.ui.page.threadstore.ThreadStoreUiEvent
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
+import com.huanchengfly.tieba.post.ui.widgets.compose.DefaultBackToTopFAB
 import com.huanchengfly.tieba.post.ui.widgets.compose.ForumAvatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlurScaffold
@@ -141,6 +141,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.ConfirmDialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.Container
 import com.huanchengfly.tieba.post.ui.widgets.compose.Dialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogNegativeButton
+import com.huanchengfly.tieba.post.ui.widgets.compose.LaunchedBackToTopFabStateEffect
 import com.huanchengfly.tieba.post.ui.widgets.compose.ListMenuItem
 import com.huanchengfly.tieba.post.ui.widgets.compose.AnimatedLikeThumbIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.LocalHazeState
@@ -151,6 +152,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.StickyHeaderOverlay
 import com.huanchengfly.tieba.post.ui.widgets.compose.StrongBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.SwipeToDismissSnackbarHost
 import com.huanchengfly.tieba.post.ui.widgets.compose.VerticalGrid
+import com.huanchengfly.tieba.post.ui.widgets.compose.animateScrollToTop
 import com.huanchengfly.tieba.post.ui.widgets.compose.collapsedFraction
 import com.huanchengfly.tieba.post.ui.widgets.compose.dialogs.AnyPopDialogProperties
 import com.huanchengfly.tieba.post.ui.widgets.compose.dialogs.DirectionState
@@ -252,7 +254,17 @@ fun ThreadPage(
     } else {
         TopAppBarDefaults.enterAlwaysScrollBehavior()
     }
-    val toolbarScrollBehavior = FloatingToolbarDefaults.exitAlwaysScrollBehavior(exitDirection = Bottom)
+    // Back-to-top lives in the FAB slot now, like every other list page. Short threads
+    // need a smaller reveal threshold than the default (index >= visibleItemCount), which
+    // a list shorter than about two screens can never reach.
+    var isBackToTopVisible by remember { mutableStateOf(false) }
+    LaunchedBackToTopFabStateEffect(
+        listState = lazyListState,
+        onVisibilityChanged = { isBackToTopVisible = it },
+        isRefreshing = state.isRefreshing,
+        isError = state.error != null,
+        minIndexFromTop = 3,
+    )
 
     var showBottomSheet by rememberSaveable { mutableStateOf(false) }
     val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -436,22 +448,6 @@ fun ThreadPage(
                         BackNavigationIcon(onBackPressed = onBackPressedCallback)
                     },
                     actions = {
-                        val scrollToTopVisible by remember { // Not on top or Toolbar is collapsed
-                            derivedStateOf { lazyListState.canScrollBackward || toolbarScrollBehavior.state.collapsedFraction >= 0.9f }
-                        }
-                        FadedVisibility(visible = scrollToTopVisible) {
-                            ActionItem(
-                                icon = Icons.Rounded.VerticalAlignTop,
-                                contentDescription = R.string.btn_back_to_top
-                            ) {
-                                if (scrollToTopVisible) {
-                                    coroutineScope.launch { lazyListState.scrollToItem(0) }
-                                    topAppBarScrollBehavior.state.contentOffset = 0f
-                                    toolbarScrollBehavior.state.contentOffset = 0f
-                                    toolbarScrollBehavior.state.offset = 0f
-                                }
-                            }
-                        }
                         // Persistent, so the slot is not empty most of the time. Also kept in
                         // the overflow sheet: this is a shortcut, not a relocation.
                         ActionItem(
@@ -499,27 +495,35 @@ fun ThreadPage(
                         totalPage = state.pageData.total,
                         like = state.thread?.like ?: LikeZero,
                         onLiked = viewModel::onThreadLikeClicked,
-                        scrollBehavior = toolbarScrollBehavior,
+                        // No scrollBehavior: the Scaffold already reserves this bar's height in
+                        // the content padding, so keeping it on costs no readable area.
                         shadowElevation = ThreadToolbarShadowElevation,
                     )
                 }
             },
             bottomHazeBlock = { blurEnabled = false },
+            floatingActionButton = {
+                DefaultBackToTopFAB(visible = isBackToTopVisible) {
+                    coroutineScope.launch { lazyListState.animateScrollToTop() }
+                }
+            },
             snackbarHostState = snackbarHostState,
             snackbarHost = { SwipeToDismissSnackbarHost(hostState = snackbarHostState) },
             backgroundColor = Color.Transparent,
         ) { padding ->
             val hazeState = LocalHazeState.current
             // Ignore Scaffold padding top changes if workaround enabled
-            val contentPadding = padding.fixedTopBarPadding()
+            // The pill is drawn ThreadToolbarScreenOffset above its reserved slot without
+            // consuming layout, so hand that much back to the content.
+            val contentPadding = padding.fixedTopBarPadding() +
+                PaddingValues(bottom = ThreadToolbarScreenOffset)
 
             Container(modifier = Modifier.clipToBounds()) {
                 ProvideNavigator(navigator = navigator) {
                     ThreadContent(
                         modifier = Modifier
                             .hazeSource(hazeState?.state)
-                            .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
-                            .nestedScroll(toolbarScrollBehavior),
+                            .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
                         viewModel = viewModel,
                         lazyListState = lazyListState,
                         contentPadding = contentPadding,
