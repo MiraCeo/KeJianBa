@@ -55,7 +55,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -377,13 +376,6 @@ fun StateScreenScope.ThreadContent(
                             onPull = viewModel::requestPollPost.takeIf { localUid != null },
                         )
                     }
-
-                    val physicalDividerThickness = with(LocalDensity.current) { 1f.toDp() }
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                        thickness = physicalDividerThickness,
-                        color = dividerColor,
-                    )
                 }
             }
 
