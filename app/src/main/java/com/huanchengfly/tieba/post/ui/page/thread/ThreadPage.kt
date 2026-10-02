@@ -3,6 +3,7 @@ package com.huanchengfly.tieba.post.ui.page.thread
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -36,7 +38,6 @@ import androidx.compose.material.icons.rounded.Face6
 import androidx.compose.material.icons.rounded.FaceRetouchingOff
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Report
-import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
@@ -73,6 +74,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -123,6 +125,7 @@ import com.huanchengfly.tieba.post.ui.models.PostData
 import com.huanchengfly.tieba.post.ui.models.SimpleForum
 import com.huanchengfly.tieba.post.ui.models.UserData
 import com.huanchengfly.tieba.post.ui.page.Destination.Forum
+import com.huanchengfly.tieba.post.ui.page.Destination.UserProfile
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.main.mainTopBarDividers
 import com.huanchengfly.tieba.post.ui.page.setResult
@@ -454,6 +457,13 @@ fun ThreadPage(
                                 }
                             }
                         }
+                        // Persistent, so the slot is not empty most of the time. Also kept in
+                        // the overflow sheet: this is a shortcut, not a relocation.
+                        ActionItem(
+                            icon = Icons.Rounded.Share,
+                            contentDescription = R.string.title_share,
+                            onClick = viewModel::onShareThread,
+                        )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = toolbarColor,
@@ -484,9 +494,14 @@ fun ThreadPage(
                                 exit = defaultVerticalExitTransition(topToBottom = false),
                             ),
                         user = state.user,
+                        onClickAvatar = state.user?.let { me ->
+                            { navigator.navigateDebounced(route = UserProfile(user = me)) }
+                        },
                         onClickReply = viewModel::onReplyThread.takeUnless { viewModel.hideReply },
                         onClickMore =  openBottomSheet,
                         onJumpPage = jumpToPageDialogState::show,
+                        currentPage = state.pageData.current,
+                        totalPage = state.pageData.total,
                         like = state.thread?.like ?: LikeZero,
                         onLiked = viewModel::onThreadLikeClicked,
                         scrollBehavior = toolbarScrollBehavior,
@@ -859,9 +874,12 @@ private fun ThreadOrPostDeleteDialog(
 private fun ThreadFloatingToolbar(
     modifier: Modifier = Modifier,
     user: UserData? = null,
+    onClickAvatar: (() -> Unit)? = null,
     onClickReply: (() -> Unit)? = null,
     onClickMore: () -> Unit = {},
     onJumpPage: () -> Unit = {},
+    currentPage: Int = 1,
+    totalPage: Int = 1,
     like: Like = LikeZero,
     onLiked: () -> Unit = {},
     scrollBehavior: FloatingToolbarScrollBehavior? = null,
@@ -892,7 +910,9 @@ private fun ThreadFloatingToolbar(
                 contentDescription = avatarContentDescription
             ) {
                 Avatar(
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier
+                        .size(36.dp)
+                        .onNotNull(onClickAvatar) { clickableNoIndication(onClick = it) },
                     data = user?.avatarUrl ?: R.drawable.ic_launcher_new_round,
                     contentDescription = avatarContentDescription
                 )
@@ -904,7 +924,10 @@ private fun ThreadFloatingToolbar(
                     modifier = Modifier
                         .padding(horizontal = 8.dp)
                         .weight(1.0f)
-                        .clickableNoIndication(onClick = onClickReply),
+                        .clip(CircleShape)
+                        .background(colorScheme.surfaceContainerHigh)
+                        .clickableNoIndication(onClick = onClickReply)
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
                     color = LocalContentColor.current.copy(alpha = 0.85f),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -912,12 +935,33 @@ private fun ThreadFloatingToolbar(
                 Spacer(modifier = Modifier.weight(1f))
             }
 
-            ActionItem(
-                icon = Icons.Rounded.RocketLaunch,
-                contentDescription = stringResource(R.string.title_jump_page),
-                positionProvider = rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-                onClick = onJumpPage,
-            )
+            // A rocket says nothing about paging, and the dialog it opened already showed
+            // the position. Show the position itself instead: self-describing, and readable
+            // without tapping. Single-page threads have nothing to say, so it disappears.
+            if (totalPage > 1) {
+                val jumpDescription = stringResource(R.string.title_jump_page)
+                PlainTooltipBox(
+                    positionProvider = rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+                    contentDescription = jumpDescription,
+                    hasAction = true,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .sizeIn(minWidth = 48.dp)
+                            .height(48.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onJumpPage)
+                            .padding(horizontal = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "$currentPage/$totalPage",
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
 
             LikeAction(like = like, onClick = onLiked)
 
