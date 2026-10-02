@@ -83,8 +83,7 @@
     <string name="tip_my_posts_login">登录后查看我的主帖和回复</string>
     <string name="tip_my_collections_login">登录后查看我的收藏</string>
     <string name="title_my_posts_threads">主帖</string>
-    <string name="title_jump_page">跳页</string>
-    <string name="tip_jump_page">当前 %1$d/%2$d 页</string>
+    <string name="title_jump_page">跳转至</string>
     <string name="title_default">贴吧 Lite</string>
     <string name="title_my_collect">我的收藏</string>
     <string name="title_at_me">提到我的</string>

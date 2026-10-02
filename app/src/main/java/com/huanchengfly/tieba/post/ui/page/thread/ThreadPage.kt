@@ -359,11 +359,6 @@ fun ThreadPage(
             it.isEmpty() || (it.toIntOrNull() ?: -1) !in 1..state.pageData.total
         },
         title = { Text(text = stringResource(id = R.string.title_jump_page)) },
-        content = {
-            with(state.pageData) {
-                Text(text = stringResource(R.string.tip_jump_page, current, total))
-            }
-        }
     )
 
     val onRefreshClicked: () -> Unit = {
