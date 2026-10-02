@@ -3,7 +3,6 @@ package com.huanchengfly.tieba.post.ui.page.thread
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +22,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -479,7 +477,12 @@ fun ThreadPage(
                     if (useStickyHeaderWorkaround && state.thread?.replyNum != null) {
                         Container {
                             StickyHeaderOverlay(state = lazyListState) {
-                                ThreadHeader(uiState = state, viewModel = viewModel)
+                                ThreadHeader(
+                                    uiState = state,
+                                    viewModel = viewModel,
+                                    viewingPage = viewingPage,
+                                    onJumpPage = jumpToPageDialogState::show,
+                                )
                             }
                         }
                     }
@@ -504,9 +507,6 @@ fun ThreadPage(
                         },
                         onClickReply = viewModel::onReplyThread.takeUnless { viewModel.hideReply },
                         onClickMore =  openBottomSheet,
-                        onJumpPage = jumpToPageDialogState::show,
-                        currentPage = viewingPage,
-                        totalPage = state.pageData.total,
                         like = state.thread?.like ?: LikeZero,
                         onLiked = viewModel::onThreadLikeClicked,
                         // No scrollBehavior: the Scaffold already reserves this bar's height in
@@ -542,7 +542,9 @@ fun ThreadPage(
                         lazyListState = lazyListState,
                         contentPadding = contentPadding,
                         topAppBarScrollBehavior = topAppBarScrollBehavior,
-                        useStickyHeader = useStickyHeader && !useStickyHeaderWorkaround
+                        useStickyHeader = useStickyHeader && !useStickyHeaderWorkaround,
+                        viewingPage = viewingPage,
+                        onJumpPage = jumpToPageDialogState::show,
                     )
                 }
             }
@@ -890,9 +892,6 @@ private fun ThreadFloatingToolbar(
     onClickAvatar: (() -> Unit)? = null,
     onClickReply: (() -> Unit)? = null,
     onClickMore: () -> Unit = {},
-    onJumpPage: () -> Unit = {},
-    currentPage: Int = 1,
-    totalPage: Int = 1,
     like: Like = LikeZero,
     onLiked: () -> Unit = {},
     scrollBehavior: FloatingToolbarScrollBehavior? = null,
@@ -946,34 +945,6 @@ private fun ThreadFloatingToolbar(
                 )
             } else {
                 Spacer(modifier = Modifier.weight(1f))
-            }
-
-            // A rocket says nothing about paging, and the dialog it opened already showed
-            // the position. Show the position itself instead: self-describing, and readable
-            // without tapping. Single-page threads have nothing to say, so it disappears.
-            if (totalPage > 1) {
-                val jumpDescription = stringResource(R.string.title_jump_page)
-                PlainTooltipBox(
-                    positionProvider = rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-                    contentDescription = jumpDescription,
-                    hasAction = true,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .sizeIn(minWidth = 48.dp)
-                            .height(48.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onJumpPage)
-                            .padding(horizontal = 6.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "$currentPage/$totalPage",
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                        )
-                    }
-                }
             }
 
             LikeAction(like = like, onClick = onLiked)

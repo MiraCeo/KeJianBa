@@ -312,7 +312,9 @@ fun StateScreenScope.ThreadContent(
     lazyListState: LazyListState,
     contentPadding: PaddingValues = PaddingNone,
     topAppBarScrollBehavior: TopAppBarScrollBehavior,
-    useStickyHeader: Boolean // Bug: StickyHeader doesn't respect content padding
+    useStickyHeader: Boolean, // Bug: StickyHeader doesn't respect content padding
+    viewingPage: Int = 0,
+    onJumpPage: (() -> Unit)? = null,
 ) {
     val navigator = LocalNavController.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -390,7 +392,9 @@ fun StateScreenScope.ThreadContent(
                                 .clip(ThreadReplyHeaderShape)
                                 .stickyHeaderBackground(appbarState, colors, lazyListState),
                             uiState = state,
-                            viewModel = viewModel
+                            viewModel = viewModel,
+                            viewingPage = viewingPage,
+                            onJumpPage = onJumpPage,
                         )
                     }
                 } else {
@@ -403,6 +407,8 @@ fun StateScreenScope.ThreadContent(
                             ),
                             uiState = state,
                             viewModel = viewModel,
+                            viewingPage = viewingPage,
+                            onJumpPage = onJumpPage,
                         )
                     }
                 }
@@ -616,6 +622,9 @@ fun ThreadHeader(
     onSortTypeChanged: (Int) -> Unit = {},
     isSeeLz: Boolean,
     onSeeLzChanged: () -> Unit = {},
+    currentPage: Int = 0,
+    totalPage: Int = 0,
+    onJumpPage: (() -> Unit)? = null,
 ) = Row(
         modifier = modifier
             .height(IntrinsicSize.Min)
@@ -627,6 +636,19 @@ fun ThreadHeader(
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
         )
+
+        // Paging sits with the reply count: both describe the extent of this list. Styled
+        // like its neighbours rather than as a 48dp target, so the bar keeps its height.
+        if (totalPage > 1 && onJumpPage != null) {
+            VerticalDivider(modifier = Modifier.padding(horizontal = 8.dp))
+
+            Text(
+                text = "$currentPage/$totalPage",
+                modifier = Modifier.clickableNoIndication(onClick = onJumpPage),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         VerticalDivider(modifier = Modifier.padding(horizontal = 8.dp))
 
@@ -665,6 +687,8 @@ fun ThreadHeader(
     modifier: Modifier = Modifier,
     uiState: ThreadUiState,
     viewModel: ThreadViewModel,
+    viewingPage: Int = 0,
+    onJumpPage: (() -> Unit)? = null,
 ) {
     ThreadHeader(
         modifier = modifier,
@@ -672,7 +696,10 @@ fun ThreadHeader(
         sortType = uiState.sortType,
         onSortTypeChanged = viewModel::onSortChanged,
         isSeeLz = uiState.seeLz,
-        onSeeLzChanged = viewModel::onSeeLzChanged
+        onSeeLzChanged = viewModel::onSeeLzChanged,
+        currentPage = viewingPage,
+        totalPage = uiState.pageData.total,
+        onJumpPage = onJumpPage,
     )
 }
 
