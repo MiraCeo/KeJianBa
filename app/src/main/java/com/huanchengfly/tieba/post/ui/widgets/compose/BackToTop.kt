@@ -26,6 +26,15 @@ fun LaunchedBackToTopFabStateEffect(
     revealDistance: Dp = 72.dp,
     reverseHideDistance: Dp = 24.dp,
     visibleDurationMillis: Long = DefaultBackToTopVisibleDurationMillis,
+    /**
+     * How many items must sit above the viewport before the action is offered.
+     *
+     * Defaults to the number of visible items, which suits long feeds but can never be
+     * reached on a list shorter than about twice the viewport: the largest possible
+     * first-visible index is `totalItems - visibleItems`. Short lists should pass a
+     * small constant instead.
+     */
+    minIndexFromTop: Int? = null,
 ) {
     val latestOnVisibilityChanged by rememberUpdatedState(onVisibilityChanged)
     val revealDistancePx = with(LocalDensity.current) { revealDistance.toPx() }
@@ -38,6 +47,7 @@ fun LaunchedBackToTopFabStateEffect(
         revealDistancePx,
         reverseHideDistancePx,
         visibleDurationMillis,
+        minIndexFromTop,
     ) {
         latestOnVisibilityChanged(false)
         if (isRefreshing || isError) return@LaunchedEffect
@@ -64,7 +74,9 @@ fun LaunchedBackToTopFabStateEffect(
             previous = current
             if (old == null) return@collect
 
-            val isFarFromTop = current.index >= current.visibleItemCount.coerceAtLeast(1)
+            val farFromTopThreshold =
+                (minIndexFromTop ?: current.visibleItemCount).coerceAtLeast(1)
+            val isFarFromTop = current.index >= farFromTopThreshold
             if (!isFarFromTop) {
                 revealTravel = 0f
                 reverseTravel = 0f

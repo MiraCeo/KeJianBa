@@ -1,6 +1,8 @@
 package com.huanchengfly.tieba.post.ui.page.subposts
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.VerticalAlignTop
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -66,7 +68,6 @@ import com.huanchengfly.tieba.post.arch.isOverlapping
 import com.huanchengfly.tieba.post.navigateDebounced
 import com.huanchengfly.tieba.post.theme.TiebaLiteTheme
 import com.huanchengfly.tieba.post.toastShort
-import com.huanchengfly.tieba.post.ui.common.FadedVisibility
 import com.huanchengfly.tieba.post.ui.common.LocalAnimatedVisibilityScope
 import com.huanchengfly.tieba.post.ui.common.theme.compose.clickableNoIndication
 import com.huanchengfly.tieba.post.ui.models.Like
@@ -91,6 +92,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.BlockTip
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlockableContent
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlurScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.CenterAlignedTopAppBar
+import com.huanchengfly.tieba.post.ui.widgets.compose.DefaultBackToTopFAB
 import com.huanchengfly.tieba.post.ui.widgets.compose.Dialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogNegativeButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogState
@@ -229,6 +231,8 @@ private fun SubPostsContent(
             onVisibilityChanged = { isBackToTopVisible = it },
             isRefreshing = uiState.isRefreshing,
             isError = uiState.error != null,
+            // Sub-post lists are short; the default threshold could never be reached.
+            minIndexFromTop = 3,
         )
 
         val onScrollToTopClicked: () -> Unit = {
@@ -266,6 +270,11 @@ private fun SubPostsContent(
             )
         }.takeIf { canReply && forumId > 0 }
 
+        val threadInfo = uiState.thread
+        val onShareClickedListener: (() -> Unit)? = threadInfo?.let { info ->
+            { TiebaUtil.shareThread(context, info.title, info.id) }
+        }
+
         val onOpenThreadClickedListener: () -> Unit = {
             navigator.navigateDebounced(route = Thread(threadId, forumId, postId = postId))
         }
@@ -283,7 +292,7 @@ private fun SubPostsContent(
                     post = uiState.post,
                     onBack = onNavigateUp,
                     onOpenThread = onOpenThreadClickedListener.takeIf { !isSheet },
-                    onScrollToTop = onScrollToTopClicked.takeIf { isBackToTopVisible && canReply },
+                    onShare = onShareClickedListener,
                     scrollBehavior = topAppBarScrollBehavior,
                 )
             },
@@ -293,24 +302,40 @@ private fun SubPostsContent(
             bottomHazeBlock = { blurEnabled = false },
             floatingActionButton = {
                 if (forumName.isNullOrEmpty()) return@BlurScaffold
-                val fabVisible by remember {
+                val replyFabVisible by remember {
                     derivedStateOf {
-                        if (canReply) {
-                            !lazyListState.canScrollBackward || scrollOrientationConnection.isScrollingForward
-                        } else {
-                            lazyListState.canScrollBackward && scrollOrientationConnection.isScrollingForward
-                        }
+                        !lazyListState.canScrollBackward || scrollOrientationConnection.isScrollingForward
                     }
                 }
-                SubpostsFAB(
-                    visible = fabVisible,
-                    onScrollToTop = onScrollToTopClicked,
-                    onReply = {
-                        if (uiState.post != null && onReplyPostClickedListener != null) {
-                            onReplyPostClickedListener(uiState.post!!)
-                        }
-                    }.takeIf { canReply }
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // Secondary action, so it is the smaller of the two and sits on top.
+                    // AnimatedVisibility (not just a scale) so it frees its slot when hidden
+                    // and the reply button keeps its usual resting position.
+                    AnimatedVisibility(
+                        visible = isBackToTopVisible,
+                        enter = scaleIn(),
+                        exit = scaleOut(),
+                    ) {
+                        DefaultBackToTopFAB(
+                            visible = true,
+                            size = if (canReply) 40.dp else 56.dp,
+                            onClick = onScrollToTopClicked,
+                        )
+                    }
+                    if (canReply) {
+                        SubpostsFAB(
+                            visible = replyFabVisible,
+                            onReply = {
+                                if (uiState.post != null && onReplyPostClickedListener != null) {
+                                    onReplyPostClickedListener(uiState.post!!)
+                                }
+                            },
+                        )
+                    }
+                }
             },
             backgroundColor = Color.Transparent,
         ) { padding ->
@@ -408,7 +433,7 @@ private fun TitleBar(
     post: PostData?,
     onBack: () -> Unit,
     onOpenThread: (() -> Unit)? = null,
-    onScrollToTop: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
     isSheet: Boolean = onOpenThread != null,
     scrollBehavior: TopAppBarScrollBehavior?,
     content: (@Composable ColumnScope.() -> Unit)? = null
@@ -431,11 +456,11 @@ private fun TitleBar(
             )
         },
         actions = {
-            FadedVisibility(visible = onScrollToTop != null) {
+            if (onShare != null) {
                 ActionItem(
-                    icon = Icons.Rounded.VerticalAlignTop,
-                    contentDescription = R.string.btn_back_to_top,
-                    onClick = onScrollToTop ?: {}
+                    icon = Icons.Rounded.Share,
+                    contentDescription = R.string.title_share,
+                    onClick = onShare,
                 )
             }
 
@@ -456,12 +481,9 @@ private fun TitleBar(
 private fun SubpostsFAB(
     modifier: Modifier = Modifier,
     visible: Boolean,
-    onScrollToTop: () -> Unit,
-    onReply: (() -> Unit)?,
+    onReply: () -> Unit,
 ) {
-    val canReply = onReply != null
-    val tip = stringResource(if (canReply) R.string.tip_reply_thread else R.string.btn_back_to_top)
-    val icon = if (canReply) Icons.Rounded.Edit else Icons.Rounded.VerticalAlignTop
+    val tip = stringResource(R.string.tip_reply_thread)
 
     PlainTooltipBox(
         modifier = modifier,
@@ -469,9 +491,9 @@ private fun SubpostsFAB(
     ) {
         FloatingActionButton(
             modifier = Modifier.animateFloatingActionButton(visible, alignment = Alignment.Center),
-            onClick = if (canReply) onReply else onScrollToTop
+            onClick = onReply,
         ) {
-            Icon(imageVector = icon, contentDescription = tip)
+            Icon(imageVector = Icons.Rounded.Edit, contentDescription = tip)
         }
     }
 }
