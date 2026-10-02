@@ -269,8 +269,6 @@
     <string name="summary_oksign_slow_mode">开启后，一键签到时签到每个吧的时间间隔将会更长</string>
     <string name="summary_oksign_slow_mode_on">一键签到时签到每个吧的时间间隔将会更长</string>
     <string name="btn_close">关闭</string>
-    <string name="title_uncollected">未收藏</string>
-    <string name="title_collected">已收藏</string>
     <string name="text_stat_follow">关注</string>
     <string name="text_stat_fans">粉丝</string>
     <string name="text_stat_tbage">吧龄</string>
@@ -468,6 +466,7 @@
     <string name="title_modify_username">修改用户名</string>
     <string name="btn_reply">回复</string>
     <string name="title_collect_floor">收藏到此楼</string>
+    <string name="title_collect_here">收藏到此处</string>
     <string name="title_collected_floor">已收藏到本楼</string>
     <string name="toast_delete_failure">删除失败 %s</string>
     <string name="message_confirm_delete">你确定要删除%s吗？</string>

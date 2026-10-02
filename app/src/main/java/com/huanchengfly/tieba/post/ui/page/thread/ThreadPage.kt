@@ -705,7 +705,11 @@ private fun ThreadMenu(
             }
             item {
                 ToggleButton(
-                    text = stringResource(id = if (isCollected) R.string.title_collected else R.string.title_uncollected),
+                    // Same wording as the per-floor menu, because it is the same action: this
+                    // pins a reading position (the floor currently mid-screen), not just a
+                    // bookmark on the thread. Saying only "未收藏" hid that, and the hidden half
+                    // resurfaced as a back-press prompt about which floor to remember.
+                    text = stringResource(id = if (isCollected) R.string.title_collect_on else R.string.title_collect_here),
                     checked = isCollected,
                     onClick = {
                         requestCloseMenu()
