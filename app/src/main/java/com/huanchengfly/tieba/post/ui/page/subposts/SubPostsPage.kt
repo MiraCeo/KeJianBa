@@ -98,7 +98,6 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.LaunchedBackToTopFabStateE
 import com.huanchengfly.tieba.post.ui.widgets.compose.LongClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.PlainTooltipBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.SharedTransitionUserHeader
-import com.huanchengfly.tieba.post.ui.widgets.compose.StickyHeaderOverlay
 import com.huanchengfly.tieba.post.ui.widgets.compose.SwipeUpLazyLoadColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.animateScrollToTop
 import com.huanchengfly.tieba.post.ui.widgets.compose.defaultBottomIndicator
@@ -106,10 +105,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.dialogs.AnyPopDialogProper
 import com.huanchengfly.tieba.post.ui.widgets.compose.dialogs.DirectionState
 import com.huanchengfly.tieba.post.ui.widgets.compose.fixedTopBarPadding
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
-import com.huanchengfly.tieba.post.ui.widgets.compose.scrollToItemWithHeader
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
-import com.huanchengfly.tieba.post.ui.widgets.compose.stickyHeaderBackground
-import com.huanchengfly.tieba.post.ui.widgets.compose.useStickyHeaderWorkaround
 import com.huanchengfly.tieba.post.utils.DateTimeUtils.getRelativeTimeString
 import com.huanchengfly.tieba.post.utils.LocalAccount
 import com.huanchengfly.tieba.post.utils.StringUtil.getShortNumString
@@ -160,7 +156,6 @@ private fun SubPostsContent(
     val context = LocalContext.current
     val navigator = LocalNavController.current
     val useStickyHeader = LocalHabitSettings.current.stickyHeader
-    val useStickyHeaderWorkaround = useStickyHeaderWorkaround()
     val account = LocalAccount.current
     val myUid = account?.uid
     val canReply = account != null && !LocalHabitSettings.current.hideReply
@@ -181,14 +176,8 @@ private fun SubPostsContent(
             is CommonUiEvent.Toast -> toastShort(text = it.message)
 
             is SubPostsUiEvent.ScrollToSubPosts -> {
-                val index = 2 + it.index // Post + Sticky Header + Subpost index
-                if (useStickyHeaderWorkaround) {
-                    lazyListState.scrollToItemWithHeader(index) { item ->
-                        item.contentType == HeaderContentType
-                    }
-                } else {
-                    lazyListState.animateScrollToItem(index)
-                }
+                val index = 2 + it.index // Post + reply-count header + Subpost index
+                lazyListState.animateScrollToItem(index)
             }
 
             is SubPostsUiEvent.DeletePostFailed -> toastShort(R.string.toast_delete_failure, it.message)
@@ -295,14 +284,8 @@ private fun SubPostsContent(
                     onBack = onNavigateUp,
                     onOpenThread = onOpenThreadClickedListener.takeIf { !isSheet },
                     onScrollToTop = onScrollToTopClicked.takeIf { isBackToTopVisible && canReply },
-                    scrollBehavior = topAppBarScrollBehavior
-                ) {
-                    if (useStickyHeaderWorkaround) {
-                        StickyHeaderOverlay(state = lazyListState) {
-                            SubPostsHeader(postNum = uiState.page.postCount)
-                        }
-                    }
-                }
+                    scrollBehavior = topAppBarScrollBehavior,
+                )
             },
             bottomBar = {
                 Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
@@ -371,27 +354,15 @@ private fun SubPostsContent(
                     }
                 }
 
-                if (!useStickyHeader || useStickyHeaderWorkaround) {
-                    item(contentType = HeaderContentType) {
-                        SubPostsHeader(
-                            modifier = Modifier.postListSurface(
-                                surfaceColor, dividerColor, roundedTop = true,
-                            ),
-                            postNum = uiState.page.postCount,
-                        )
-                    }
-                } else {
-                    stickyHeader(contentType = HeaderContentType) {
-                        val appbarState = topAppBarScrollBehavior.state
-                        val colors = TiebaLiteTheme.topAppBarColors
-                        SubPostsHeader(
-                            modifier = Modifier
-                                .padding(horizontal = PostCardStyle.horizontalSpacing)
-                                .clip(PostCardStyle.headerShape)
-                                .stickyHeaderBackground(appbarState, colors, lazyListState),
-                            postNum = uiState.page.postCount
-                        )
-                    }
+                // The reply count is static, so it rides with the content as the rounded top
+                // of the reply column. Pinning it would stack a second row inside the app bar.
+                item(contentType = HeaderContentType) {
+                    SubPostsHeader(
+                        modifier = Modifier.postListSurface(
+                            surfaceColor, dividerColor, roundedTop = true,
+                        ),
+                        postNum = uiState.page.postCount,
+                    )
                 }
 
                 items(items = uiState.subPosts, key = { subPost -> subPost.id }) { item ->
