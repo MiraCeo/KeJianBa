@@ -264,8 +264,9 @@ fun DefaultBackToTopFAB(
     ) {
         FloatingActionButton(
             onClick = onClick,
+            // No explicit shape: M3's default FAB shape is a rounded rectangle, and the
+            // back-to-top action should not look different from the FAB it may sit beside.
             modifier = Modifier.animateFloatingActionButton(visible, alignment = Alignment.Center).size(size),
-            shape = CircleShape,
         ) {
             Icon(
                 imageVector = Icons.Rounded.VerticalAlignTop,

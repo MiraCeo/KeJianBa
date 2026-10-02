@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -35,12 +36,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.NonRestartableComposable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +65,7 @@ import com.huanchengfly.tieba.post.arch.collectUiEventWithLifecycle
 import com.huanchengfly.tieba.post.arch.isFullyCollapsed
 import com.huanchengfly.tieba.post.arch.isOverlapping
 import com.huanchengfly.tieba.post.navigateDebounced
+import com.huanchengfly.tieba.post.plus
 import com.huanchengfly.tieba.post.theme.TiebaLiteTheme
 import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.common.LocalAnimatedVisibilityScope
@@ -85,7 +85,6 @@ import com.huanchengfly.tieba.post.ui.page.thread.PostCard
 import com.huanchengfly.tieba.post.ui.page.thread.PostCardStyle
 import com.huanchengfly.tieba.post.ui.page.thread.ThreadLikeUiEvent
 import com.huanchengfly.tieba.post.ui.page.thread.postListSurface
-import com.huanchengfly.tieba.post.ui.utils.rememberScrollOrientationConnection
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
 import com.huanchengfly.tieba.post.ui.widgets.compose.AnimatedLikeThumbIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.BlockTip
@@ -142,6 +141,14 @@ fun SubPostsPage(
         }
     }
 }
+
+private val SubPostsFabSize = 56.dp
+
+/**
+ * Keeps the last reply clear of the persistent reply button, and doubles as an
+ * end-of-content cue rather than letting the list slam into the bottom edge.
+ */
+private val SubPostsFabClearance = 88.dp
 
 private const val PostContentType = 0
 private val HeaderContentType = Unit
@@ -221,7 +228,6 @@ private fun SubPostsContent(
         } else {
             TopAppBarDefaults.enterAlwaysScrollBehavior()
         }
-        val scrollOrientationConnection = rememberScrollOrientationConnection()
 
         // Shared back-to-top behaviour: reveal only after scrolling back up a bit,
         // auto-hide after a few seconds. Same controller the other list pages use.
@@ -302,18 +308,13 @@ private fun SubPostsContent(
             bottomHazeBlock = { blurEnabled = false },
             floatingActionButton = {
                 if (forumName.isNullOrEmpty()) return@BlurScaffold
-                val replyFabVisible by remember {
-                    derivedStateOf {
-                        !lazyListState.canScrollBackward || scrollOrientationConnection.isScrollingForward
-                    }
-                }
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    // Secondary action, so it is the smaller of the two and sits on top.
-                    // AnimatedVisibility (not just a scale) so it frees its slot when hidden
-                    // and the reply button keeps its usual resting position.
+                    // The two actions are peers, so they share shape, size and colour and only
+                    // the icon tells them apart. AnimatedVisibility rather than a scale, so the
+                    // slot is released when hidden and the reply button never shifts.
                     AnimatedVisibility(
                         visible = isBackToTopVisible,
                         enter = scaleIn(),
@@ -321,13 +322,14 @@ private fun SubPostsContent(
                     ) {
                         DefaultBackToTopFAB(
                             visible = true,
-                            size = if (canReply) 40.dp else 56.dp,
+                            size = SubPostsFabSize,
                             onClick = onScrollToTopClicked,
                         )
                     }
                     if (canReply) {
+                        // Always on: replying is the whole point of this page, and hiding it
+                        // on scroll leaves no way to reach it without scrolling back.
                         SubpostsFAB(
-                            visible = replyFabVisible,
                             onReply = {
                                 if (uiState.post != null && onReplyPostClickedListener != null) {
                                     onReplyPostClickedListener(uiState.post!!)
@@ -339,14 +341,14 @@ private fun SubPostsContent(
             },
             backgroundColor = Color.Transparent,
         ) { padding ->
-            val contentPadding = padding.fixedTopBarPadding()
+            val contentPadding = padding.fixedTopBarPadding() +
+                PaddingValues(bottom = SubPostsFabClearance)
             val surfaceColor = MaterialTheme.colorScheme.surface
             val dividerColor = DividerDefaults.color
 
             SwipeUpLazyLoadColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .nestedScroll(scrollOrientationConnection)
                     .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
                 state = lazyListState,
                 contentPadding = contentPadding,
@@ -480,7 +482,6 @@ private fun TitleBar(
 @Composable
 private fun SubpostsFAB(
     modifier: Modifier = Modifier,
-    visible: Boolean,
     onReply: () -> Unit,
 ) {
     val tip = stringResource(R.string.tip_reply_thread)
@@ -490,7 +491,7 @@ private fun SubpostsFAB(
         contentDescription = tip,
     ) {
         FloatingActionButton(
-            modifier = Modifier.animateFloatingActionButton(visible, alignment = Alignment.Center),
+            modifier = Modifier.size(SubPostsFabSize),
             onClick = onReply,
         ) {
             Icon(imageVector = Icons.Rounded.Edit, contentDescription = tip)
