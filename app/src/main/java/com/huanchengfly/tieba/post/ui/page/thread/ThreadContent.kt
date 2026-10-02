@@ -113,32 +113,20 @@ sealed class Type(val key: String) {
     object Post: Type("") // Use PostData.id as item key
 }
 
-private val ThreadCardShape = RoundedCornerShape(12.dp)
-private val ThreadReplyHeaderShape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
-private val ThreadReplyFooterShape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
-private val ThreadCardHorizontalSpacing = 8.dp
-private val ThreadCardVerticalSpacing = 4.dp
+// Shared with the sub-post page via PostCardStyle; kept as local aliases so the rest
+// of this file reads unchanged.
+private val ThreadCardShape = PostCardStyle.shape
+private val ThreadReplyHeaderShape = PostCardStyle.headerShape
+private val ThreadReplyFooterShape = PostCardStyle.footerShape
+private val ThreadCardHorizontalSpacing = PostCardStyle.horizontalSpacing
+private val ThreadCardVerticalSpacing = PostCardStyle.verticalSpacing
 
 private fun Modifier.threadReplySurface(
     color: Color,
     dividerColor: Color,
     roundedTop: Boolean = false,
     drawDivider: Boolean = true,
-): Modifier = this
-    .padding(horizontal = ThreadCardHorizontalSpacing)
-    .clip(if (roundedTop) ThreadReplyHeaderShape else RoundedCornerShape(0.dp))
-    .background(color)
-    .drawBehind {
-        if (drawDivider) {
-            val inset = 16.dp.toPx()
-            drawLine(
-                color = dividerColor,
-                start = Offset(inset, size.height - 0.5f),
-                end = Offset(size.width - inset, size.height - 0.5f),
-                strokeWidth = 1f,
-            )
-        }
-    }
+): Modifier = postListSurface(color, dividerColor, roundedTop, drawDivider)
 
 /**
  * Get [LazyListItemInfo.offset] of first visible post.

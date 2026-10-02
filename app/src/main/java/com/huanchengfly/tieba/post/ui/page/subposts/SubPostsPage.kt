@@ -3,6 +3,7 @@ package com.huanchengfly.tieba.post.ui.page.subposts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material3.Button
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +46,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -77,7 +81,9 @@ import com.huanchengfly.tieba.post.ui.page.Destination.UserProfile
 import com.huanchengfly.tieba.post.ui.page.LocalNavController
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.thread.PostCard
+import com.huanchengfly.tieba.post.ui.page.thread.PostCardStyle
 import com.huanchengfly.tieba.post.ui.page.thread.ThreadLikeUiEvent
+import com.huanchengfly.tieba.post.ui.page.thread.postListSurface
 import com.huanchengfly.tieba.post.ui.utils.rememberScrollOrientationConnection
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
 import com.huanchengfly.tieba.post.ui.widgets.compose.AnimatedLikeThumbIcon
@@ -88,11 +94,13 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.CenterAlignedTopAppBar
 import com.huanchengfly.tieba.post.ui.widgets.compose.Dialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogNegativeButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogState
+import com.huanchengfly.tieba.post.ui.widgets.compose.LaunchedBackToTopFabStateEffect
 import com.huanchengfly.tieba.post.ui.widgets.compose.LongClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.PlainTooltipBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.SharedTransitionUserHeader
 import com.huanchengfly.tieba.post.ui.widgets.compose.StickyHeaderOverlay
 import com.huanchengfly.tieba.post.ui.widgets.compose.SwipeUpLazyLoadColumn
+import com.huanchengfly.tieba.post.ui.widgets.compose.animateScrollToTop
 import com.huanchengfly.tieba.post.ui.widgets.compose.defaultBottomIndicator
 import com.huanchengfly.tieba.post.ui.widgets.compose.dialogs.AnyPopDialogProperties
 import com.huanchengfly.tieba.post.ui.widgets.compose.dialogs.DirectionState
@@ -210,7 +218,7 @@ private fun SubPostsContent(
 //    }
 
     StateScreen(
-        modifier = Modifier.background(MaterialTheme.colorScheme.surface),
+        modifier = Modifier.background(PostCardStyle.pageBackground),
         isEmpty = uiState.subPosts.isEmpty(),
         isLoading = uiState.isRefreshing,
         error = uiState.error,
@@ -224,8 +232,18 @@ private fun SubPostsContent(
         }
         val scrollOrientationConnection = rememberScrollOrientationConnection()
 
+        // Shared back-to-top behaviour: reveal only after scrolling back up a bit,
+        // auto-hide after a few seconds. Same controller the other list pages use.
+        var isBackToTopVisible by remember { mutableStateOf(false) }
+        LaunchedBackToTopFabStateEffect(
+            listState = lazyListState,
+            onVisibilityChanged = { isBackToTopVisible = it },
+            isRefreshing = uiState.isRefreshing,
+            isError = uiState.error != null,
+        )
+
         val onScrollToTopClicked: () -> Unit = {
-            coroutineScope.launch { lazyListState.scrollToItem(0) }
+            coroutineScope.launch { lazyListState.animateScrollToTop() }
             topAppBarScrollBehavior.state.contentOffset = 0f
         }
 
@@ -276,7 +294,7 @@ private fun SubPostsContent(
                     post = uiState.post,
                     onBack = onNavigateUp,
                     onOpenThread = onOpenThreadClickedListener.takeIf { !isSheet },
-                    onScrollToTop = onScrollToTopClicked.takeIf { lazyListState.canScrollBackward && canReply },
+                    onScrollToTop = onScrollToTopClicked.takeIf { isBackToTopVisible && canReply },
                     scrollBehavior = topAppBarScrollBehavior
                 ) {
                     if (useStickyHeaderWorkaround) {
@@ -314,6 +332,8 @@ private fun SubPostsContent(
             backgroundColor = Color.Transparent,
         ) { padding ->
             val contentPadding = padding.fixedTopBarPadding()
+            val surfaceColor = MaterialTheme.colorScheme.surface
+            val dividerColor = DividerDefaults.color
 
             SwipeUpLazyLoadColumn(
                 modifier = Modifier
@@ -329,7 +349,15 @@ private fun SubPostsContent(
                 val postItem = uiState.post ?: return@SwipeUpLazyLoadColumn
                 item(key = "Post$postId", contentType = PostContentType) {
                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides null) {
-                        Column {
+                        Column(
+                            modifier = Modifier
+                                .padding(
+                                    horizontal = PostCardStyle.horizontalSpacing,
+                                    vertical = PostCardStyle.verticalSpacing,
+                                )
+                                .clip(PostCardStyle.shape)
+                                .background(surfaceColor)
+                        ) {
                             PostCard(
                                 post = postItem,
                                 onUserClick = {
@@ -339,43 +367,64 @@ private fun SubPostsContent(
                                 onMenuCopyClick = onCopyClickedListener,
                                 onMenuDeleteClick = viewModel::onDeletePost.takeIf { postItem.author.id == myUid } // Check is my Post
                             )
-                            HorizontalDivider(thickness = 2.dp)
                         }
                     }
                 }
 
                 if (!useStickyHeader || useStickyHeaderWorkaround) {
                     item(contentType = HeaderContentType) {
-                        SubPostsHeader(postNum = uiState.page.postCount)
+                        SubPostsHeader(
+                            modifier = Modifier.postListSurface(
+                                surfaceColor, dividerColor, roundedTop = true,
+                            ),
+                            postNum = uiState.page.postCount,
+                        )
                     }
                 } else {
                     stickyHeader(contentType = HeaderContentType) {
                         val appbarState = topAppBarScrollBehavior.state
                         val colors = TiebaLiteTheme.topAppBarColors
                         SubPostsHeader(
-                            modifier = Modifier.stickyHeaderBackground(appbarState, colors, lazyListState),
+                            modifier = Modifier
+                                .padding(horizontal = PostCardStyle.horizontalSpacing)
+                                .clip(PostCardStyle.headerShape)
+                                .stickyHeaderBackground(appbarState, colors, lazyListState),
                             postNum = uiState.page.postCount
                         )
                     }
                 }
 
                 items(items = uiState.subPosts, key = { subPost -> subPost.id }) { item ->
-                    SubPostItem(
-                        item = item,
-                        onUserClick = {
-                            navigator.navigateDebounced(
-                                route = UserProfile(user = it, transitionKey = item.id.toString())
-                            )
-                        },
-                        onAgree = viewModel::onSubPostLikeClicked,
-                        onMenuReplyClick = onReplySubPostClickedListener,
-                        onMenuCopyClick = onCopyClickedListener,
-                        onMenuReportClick = {
-                            coroutineScope.launch {
-                                TiebaUtil.reportPost(context, navigator, postId = it.id.toString())
-                            }
-                        },
-                        onMenuDeleteClick = viewModel::onDeleteSubPost.takeIf { item.authorId == myUid } // Check is my SubPost
+                    Box(Modifier.postListSurface(surfaceColor, dividerColor)) {
+                        SubPostItem(
+                            item = item,
+                            onUserClick = {
+                                navigator.navigateDebounced(
+                                    route = UserProfile(user = it, transitionKey = item.id.toString())
+                                )
+                            },
+                            onAgree = viewModel::onSubPostLikeClicked,
+                            onMenuReplyClick = onReplySubPostClickedListener,
+                            onMenuCopyClick = onCopyClickedListener,
+                            onMenuReportClick = {
+                                coroutineScope.launch {
+                                    TiebaUtil.reportPost(context, navigator, postId = it.id.toString())
+                                }
+                            },
+                            onMenuDeleteClick = viewModel::onDeleteSubPost.takeIf { item.authorId == myUid } // Check is my SubPost
+                        )
+                    }
+                }
+
+                // Caps the column so the final floor divider is not left hanging.
+                item(key = "SubPostsFooter") {
+                    Spacer(
+                        modifier = Modifier
+                            .padding(horizontal = PostCardStyle.horizontalSpacing)
+                            .fillMaxWidth()
+                            .height(PostCardStyle.footerHeight)
+                            .clip(PostCardStyle.footerShape)
+                            .background(surfaceColor)
                     )
                 }
             }

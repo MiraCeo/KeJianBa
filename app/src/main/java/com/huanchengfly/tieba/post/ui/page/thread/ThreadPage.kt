@@ -166,7 +166,6 @@ import kotlinx.coroutines.launch
 private val ThreadToolbarContainerHeight = 46.dp
 private val ThreadToolbarHorizontalSpacing = CardHorizontalSpacing + 4.dp
 private val ThreadToolbarShadowElevation = 3.dp
-private val ThreadPageLightBackground = Color(0xFFF5F5F5)
 
 /**
  * Offset from the edge of the screen used for [ThreadFloatingToolbar].
@@ -410,11 +409,7 @@ fun ThreadPage(
         }
     }
 
-    val pageBackground = if (TiebaLiteTheme.extendedColorScheme.darkTheme) {
-        MaterialTheme.colorScheme.surface
-    } else {
-        ThreadPageLightBackground
-    }
+    val pageBackground = PostCardStyle.pageBackground
     StateScreen(
         modifier = Modifier.background(pageBackground),
         isEmpty =  isEmpty,
