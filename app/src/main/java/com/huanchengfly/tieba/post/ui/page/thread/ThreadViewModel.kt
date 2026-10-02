@@ -261,7 +261,7 @@ class ThreadViewModel @Inject constructor(
                     thread = response.thread,
                     data = newData,
                     pageData = pageData,
-                    pageAnchors = anchorsOf(response.posts, page) + it.pageAnchors,
+                    pageAnchors = anchorsOf(response.posts, page, state.data) + it.pageAnchors,
                 )
             }
             // Scroll to previous floor
@@ -295,7 +295,7 @@ class ThreadViewModel @Inject constructor(
                 it.updateStateFrom(response).copy(
                     data = newData,
                     pageData = pageData,
-                    pageAnchors = it.pageAnchors + anchorsOf(response.posts, nextPage),
+                    pageAnchors = it.pageAnchors + anchorsOf(response.posts, nextPage, state.data),
                 )
             }
         }
@@ -664,9 +664,25 @@ class ThreadViewModel @Inject constructor(
         )
     }
 
-    /** @see ThreadUiState.pageOfFloor */
-    private fun anchorsOf(posts: List<PostData>, page: Int): List<PageAnchor> =
-        posts.firstOrNull()?.let { listOf(PageAnchor(firstFloor = it.floor, page = page)) }.orEmpty()
+    /**
+     * Anchor for a freshly loaded page.
+     *
+     * The endpoint pages by cursor and happily re-sends floors we already hold, so anchoring
+     * on `posts.first()` would drop the marker inside the *previous* page and mis-attribute
+     * every floor after it. Anchor on the first post that is actually new; if the response
+     * adds nothing, it earns no anchor.
+     *
+     * @see ThreadUiState.pageOfFloor
+     */
+    private fun anchorsOf(
+        posts: List<PostData>,
+        page: Int,
+        known: List<PostData> = emptyList(),
+    ): List<PageAnchor> {
+        val knownIds = known.mapTo(HashSet(known.size)) { it.id }
+        val first = posts.firstOrNull { it.id !in knownIds } ?: return emptyList()
+        return listOf(PageAnchor(firstFloor = first.floor, page = page))
+    }
 
     private fun ThreadUiState.updateStateFrom(response: PbPageUiResponse): ThreadUiState {
         if (response.user == null) {
